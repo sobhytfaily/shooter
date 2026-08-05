@@ -26,10 +26,14 @@ AProjectileRocket::AProjectileRocket()
 void AProjectileRocket::BeginPlay()
 {
 	Super::BeginPlay();
-	if (!HasAuthority())
+
+	// Only register hit callback on the server (authority) to handle damage
+	// Clients will rely on replicated effects from server
+	if (HasAuthority())
 	{
 		CollisionBox->OnComponentHit.AddDynamic(this, &AProjectileRocket::OnHit);
 	}
+
 	SpawnTrailSystem();
 	if(ProjectileLoop && LoopAttenuation)
 	{

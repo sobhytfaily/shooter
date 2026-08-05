@@ -75,7 +75,10 @@ void AProjectile::ReEnableInstigatorCollision()
 void AProjectile::OnHit(UPrimitiveComponent* HitCom, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {	
 	AShooterCharacter* ShooterCharacter = Cast<AShooterCharacter>(OtherActor);
-	Destroy();
+
+	// Allow subclasses to handle hit events before destruction
+	// Subclasses may override this method to add custom behavior (damage, explosions, etc.)
+	// Call Destroy() in subclass implementation if they want immediate destruction
 }
 void AProjectile::DestroyTimerFinshed()
 {

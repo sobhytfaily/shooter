@@ -188,8 +188,10 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Crosshairs")
 	float ZoomInterpSpeed = 20.f;
 
-	UPROPERTY(EditAnywhere, Category = "Ammo")
+	UPROPERTY(ReplicatedUsing = OnRep_Ammo, EditAnywhere, Category = "Ammo")
 	int32 Ammo;
+	UFUNCTION()
+	void OnRep_Ammo();
 	UFUNCTION(Client, Reliable)
 	void ClientUpdateAmmo(int32 ServerAmmo);
 	UFUNCTION(Client, Reliable)

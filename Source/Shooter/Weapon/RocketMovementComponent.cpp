@@ -4,7 +4,7 @@
 #include "RocketMovementComponent.h"
 
 
-URocketMovementComponent:: EHandleBlockingHitResult URocketMovementComponent::HandleBlockingHit(const FHitResult& Hit, float TimeTick, const FVector& MoveDelta, float& SubTickTimeRemaining)
+UProjectileMovementComponent::EHandleBlockingHitResult URocketMovementComponent::HandleBlockingHit(const FHitResult& Hit, float TimeTick, const FVector& MoveDelta, float& SubTickTimeRemaining)
 {
     Super::HandleBlockingHit(Hit, TimeTick, MoveDelta, SubTickTimeRemaining);
     return EHandleBlockingHitResult::AdvanceNextSubstep;
@@ -12,5 +12,7 @@ URocketMovementComponent:: EHandleBlockingHitResult URocketMovementComponent::Ha
 
 void URocketMovementComponent::HandleImpact(const FHitResult &Hit, float TimeSlice, const FVector &MoveDelta)
 {
-    //Rocket SHould not stop after collison with character
+    // Rocket should not stop after collision with character
+    // Allow rocket to continue its trajectory without being stopped by blocking hits
+    Super::HandleImpact(Hit, TimeSlice, MoveDelta);
 }

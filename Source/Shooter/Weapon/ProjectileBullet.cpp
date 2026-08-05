@@ -43,6 +43,13 @@ void AProjectileBullet::OnHit(UPrimitiveComponent *HitCom, AActor *OtherActor, U
 		return;
 	}
 
+	// Validate hit data and OtherActor before accessing hit properties
+	if (!OtherActor || !Hit.IsValidBlockingHit())
+	{
+		Super::OnHit(HitCom, OtherActor, OtherComp, NormalImpulse, Hit);
+		return;
+	}
+
 	AShooterCharacter* OwnerCharacter = Cast<AShooterCharacter>(GetOwner());
 	if (OwnerCharacter)
 	{

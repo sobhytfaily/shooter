@@ -37,7 +37,8 @@ void AProjectileGranade::OnBounce(const FHitResult& ImpactResult, const FVector&
 	float CurrentTime = GetWorld()->GetTimeSeconds();
 	float VelocityMagnitude = ImpactVelocity.Size();
 
-	if (BounceSound && 
+	// Check if sound is set and velocity is sufficient before playing
+	if (BounceSound != nullptr && 
 		VelocityMagnitude >= MinBounceVelocity && 
 		(CurrentTime - LastBounceSoundTime) >= BounceSoundCooldown)
 	{
