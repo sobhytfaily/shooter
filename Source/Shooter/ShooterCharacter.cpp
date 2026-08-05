@@ -219,15 +219,19 @@ void AShooterCharacter::BeginPlay()
 	UpdateHudHealth();
 	GetMesh()->UnHideBoneByName(FName("neck_01"));
 
-	// Initialize first person camera on spawn
-	if (IsLocallyControlled() && CameraBoom && FollowCamera)
+	// Save Blueprint/editor camera values before any code touches them
+	if (CameraBoom)
 	{
-		CameraBoom->SocketOffset = FVector(25, 10, 5);
-		CameraBoom->TargetArmLength = 0.f;
-		FollowCamera->SetFieldOfView(90.f);
-		inFirst = true;
-		SetFirstPersonBodyVisibility(true);
-		MaskMesh->SetVisibility(false);
+		DefaultArmLength    = CameraBoom->TargetArmLength;
+		DefaultSocketOffset = CameraBoom->SocketOffset;
+	}
+
+	// Start in third person - camera values managed by the engine/blueprint
+	if (IsLocallyControlled())
+	{
+		inFirst = false;
+		SetFirstPersonBodyVisibility(false);
+		if (MaskMesh) MaskMesh->SetVisibility(false);
 	}
 
 	if (HasAuthority())
@@ -257,7 +261,10 @@ void AShooterCharacter::BeginPlay()
 	}
 	SpawnDefaultWeapon();
 	UpdateHudAmmo();
-	ChangeFOV();
+	// Do NOT call ChangeFOV() on respawn — camera state is managed by the engine/blueprint.
+	// Calling it here would flip to first-person on every respawn.
+	Changefov = false;
+	inFirst = false;
 	IntializedHud = false;
 
 	// Ensure weapon visibility is correct after spawning default weapon in first person
@@ -359,8 +366,8 @@ void AShooterCharacter::Tick(float DeltaTime)
 			// Switching TO First Person
 			if (CameraBoom && FollowCamera && GetMesh())
 			{
-				CameraBoom->SocketOffset = FVector(25, 10, 5);
 				CameraBoom->TargetArmLength = 0.f;
+				CameraBoom->SocketOffset = FVector(0.f, 0.f, 0.f);
 				FollowCamera->SetFieldOfView(90.f);
 				inFirst = true;
 
@@ -382,11 +389,13 @@ void AShooterCharacter::Tick(float DeltaTime)
 				MaskMesh->SetVisibility(true);
 			}
 
-			CameraBoom->SocketOffset = FMath::VInterpTo(CameraBoom->SocketOffset, FVector(0, 100, 50), DeltaTime, 20.f);
-			CameraBoom->TargetArmLength = FMath::FInterpTo(CameraBoom->TargetArmLength, 300.f, DeltaTime, 10.f);
+			CameraBoom->TargetArmLength = FMath::FInterpTo(CameraBoom->TargetArmLength, DefaultArmLength, DeltaTime, 10.f);
+			CameraBoom->SocketOffset = FMath::VInterpTo(CameraBoom->SocketOffset, DefaultSocketOffset, DeltaTime, 20.f);
 
-			if (CameraBoom->SocketOffset.Y >= 99)
+			if (FMath::IsNearlyEqual(CameraBoom->TargetArmLength, DefaultArmLength, 1.f))
 			{
+				CameraBoom->TargetArmLength = DefaultArmLength;
+				CameraBoom->SocketOffset = DefaultSocketOffset;
 				Changefov = false;
 				inFirst = false;
 			}

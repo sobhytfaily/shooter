@@ -83,8 +83,10 @@ void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 
 		// Update grenade trajectory while aiming
 		UpdateGrenadeTrajectory();
+
+		// Only the locally-controlled player should trigger auto-reload
+		ReloadEmptyWeapon();
 	}
-	ReloadEmptyWeapon();
 }
 
 void UCombatComponent::SetHudCrosshairs(float DeltaTime)
@@ -179,16 +181,15 @@ void UCombatComponent::InterpFov(float DeltaTime)
 }
 void UCombatComponent::FireTimerFinished()
 {
+	// Always restore bCanFire first — a null weapon or any early-return below
+	// must never leave the player permanently unable to fire.
+	bCanFire = true;
+
 	if (EquippedWeapon == nullptr || Character == nullptr) return;
 
-	bCanFire = true;
-	if (bFireButtonPressed)
+	if (bFireButtonPressed && EquippedWeapon->bAutomatic)
 	{
-		if (EquippedWeapon->bAutomatic)
-		{
-			Fire();
-
-		}
+		Fire();
 	}
 	ReloadEmptyWeapon();
 }
@@ -518,6 +519,15 @@ void UCombatComponent::SwapWeapon()
 void UCombatComponent::EquipPrimaryWeapon(AWeapon* WeaponToEquip)
 {
 	if (WeaponToEquip == nullptr || Character == nullptr) return;
+	// Clear any stuck fire-timer or reload state from the previously equipped weapon.
+	// If a reload montage was interrupted (elim, swap, respawn), FinishReloading never
+	// fires and both bLocallyReloading and CombatState stay locked. Reset them here.
+	bCanFire = true;
+	bLocallyReloading = false;
+	if (Character->HasAuthority() && CombatState == ECombatState::ECS_Reloading)
+	{
+		CombatState = ECombatState::ECS_Unoccupied;
+	}
 	DropEquippedWeapon();
 	EquippedWeapon = WeaponToEquip;
 	EquippedWeapon->SetOwner(Character);
@@ -539,7 +549,9 @@ void UCombatComponent::EquipPrimaryWeapon(AWeapon* WeaponToEquip)
 	EquippedWeapon->SetHudAmmo();
 	UpdateCarriedAmmo();
 	PlayEquipedWeaponSound(EquippedWeapon);
-	ReloadEmptyWeapon();
+	// Note: do NOT call ReloadEmptyWeapon() here.
+	// TickComponent already calls it every frame. Calling it during equip
+	// races with the tick and causes a double ServerReload → infinite reload loop.
 	EquippedWeapon->EnableCustomDepth(false);
 }
 void UCombatComponent::EquipSecondayWeapon(AWeapon* WeaponToEquip)
@@ -658,7 +670,8 @@ void UCombatComponent::Reload()
 void UCombatComponent::ServerReload_Implementation()
 {
 	if (Character == nullptr || EquippedWeapon == nullptr) return;
-
+	// Reject if already reloading — prevents double-reload from race conditions
+	if (CombatState == ECombatState::ECS_Reloading) return;
 
 	CombatState = ECombatState::ECS_Reloading;
 	if (!Character->IsLocallyControlled())

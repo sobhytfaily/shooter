@@ -14,7 +14,9 @@ AProjectileBullet::AProjectileBullet()
 {
 	ProjectileMovementComponent = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("Projectile Movement Component"));
 	ProjectileMovementComponent->bRotationFollowsVelocity = true;
-	ProjectileMovementComponent->SetIsReplicated(true);
+	// Bullets are client-predicted; movement replication is unnecessary bandwidth.
+	// The server spawns the authoritative projectile; only the hit result matters.
+	ProjectileMovementComponent->SetIsReplicated(false);
 	ProjectileMovementComponent->InitialSpeed = InitialSpeed;
 	ProjectileMovementComponent->MaxSpeed = InitialSpeed;
 }
@@ -43,46 +45,61 @@ void AProjectileBullet::OnHit(UPrimitiveComponent *HitCom, AActor *OtherActor, U
 		return;
 	}
 
-	// Validate hit data and OtherActor before accessing hit properties
+	// Always destroy on any valid blocking hit — prevents bullets sticking in the world
 	if (!OtherActor || !Hit.IsValidBlockingHit())
 	{
 		Super::OnHit(HitCom, OtherActor, OtherComp, NormalImpulse, Hit);
+		Destroy();
 		return;
 	}
 
-	AShooterCharacter* OwnerCharacter = Cast<AShooterCharacter>(GetOwner());
+	// Owner chain: this projectile's Owner is the AWeapon, the weapon's Owner is the AShooterCharacter
+	AShooterCharacter* OwnerCharacter = Cast<AShooterCharacter>(GetOwner()) ;
+	if (OwnerCharacter == nullptr)
+	{
+		AWeapon* OwnerWeapon = Cast<AWeapon>(GetOwner());
+		if (OwnerWeapon)
+		{
+			OwnerCharacter = Cast<AShooterCharacter>(OwnerWeapon->GetOwner());
+		}
+	}
+
 	if (OwnerCharacter)
 	{
-		AShooterPlayerController* OwnerContoller = Cast<AShooterPlayerController>(OwnerCharacter->Controller);
-		if (OwnerContoller)
+		AShooterPlayerController* OwnerController = Cast<AShooterPlayerController>(OwnerCharacter->Controller);
+		if (OwnerController)
 		{
 			if (OwnerCharacter->HasAuthority() && !bUseServerSideRewind)
 			{
 				const bool bHeadShot = Hit.BoneName == FName("head") || Hit.BoneName == FName("neck_01");
 				const float BaseDamage = bHeadShot ? headShotDamage : damage;
 
-				// Calculate distance from spawn point for damage falloff
-				AWeapon* OwnerWeapon = Cast<AWeapon>(GetOwner()->GetOwner());
+				AWeapon* OwnerWeapon = Cast<AWeapon>(GetOwner());
 				float DamageToCause = BaseDamage;
-
 				if (OwnerWeapon)
 				{
 					const float Distance = (Hit.ImpactPoint - TraceStart).Size();
 					DamageToCause = OwnerWeapon->CalculateDamageWithFalloff(Distance, BaseDamage);
 				}
 
-				UGameplayStatics::ApplyDamage(OtherActor, DamageToCause, OwnerContoller, this, UDamageType::StaticClass());
+				UGameplayStatics::ApplyDamage(OtherActor, DamageToCause, OwnerController, this, UDamageType::StaticClass());
 				Super::OnHit(HitCom, OtherActor, OtherComp, NormalImpulse, Hit);
+				Destroy();
 				return;
 			}
 			AShooterCharacter* HitCharacter = Cast<AShooterCharacter>(OtherActor);
 			if (bUseServerSideRewind && OwnerCharacter->GetLagCompansationComponent() && OwnerCharacter->IsLocallyControlled() && HitCharacter)
 			{
-				OwnerCharacter->GetLagCompansationComponent()->ProjectileServerScoreRequest(HitCharacter, TraceStart, InitialVelocity, OwnerContoller->GetServerTime() - OwnerContoller->SingleTripTime);
+				OwnerCharacter->GetLagCompansationComponent()->ProjectileServerScoreRequest(
+					HitCharacter, TraceStart, InitialVelocity,
+					OwnerController->GetServerTime() - OwnerController->SingleTripTime);
 			}
 		}
 	}
+
+	// Always call Super and Destroy — handles world/static hits and cosmetic effects
 	Super::OnHit(HitCom, OtherActor, OtherComp, NormalImpulse, Hit);
+	Destroy();
 }
 
 void AProjectileBullet::BeginPlay()

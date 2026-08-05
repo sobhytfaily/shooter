@@ -60,8 +60,11 @@ void AProjectileWeapon::Fire(const FVector& HitTarget)
 			}
 			else
 			{
+				// !HasAuthority(): client machine
 				if (InstigatorPawn->IsLocallyControlled())
 				{
+					// Locally controlled client: spawn a cosmetic (non-authority) projectile for visual prediction.
+					// The server will spawn the real replicated projectile via ServerFire → MulticastFire.
 					if (ServerSideRewindProjectileClass)
 					{
 						SpawnedProjectile = world->SpawnActor<AProjectile>(ServerSideRewindProjectileClass, SocketTransform.GetLocation(), TargetRotation, SpawnParams);
@@ -73,17 +76,8 @@ void AProjectileWeapon::Fire(const FVector& HitTarget)
 						}
 					}
 				}
-				else
-				{
-					if (ServerSideRewindProjectileClass)
-					{
-						SpawnedProjectile = world->SpawnActor<AProjectile>(ServerSideRewindProjectileClass, SocketTransform.GetLocation(), TargetRotation, SpawnParams);
-						if (SpawnedProjectile)
-						{
-							SpawnedProjectile->bUseServerSideRewind = false;
-						}
-					}
-				}
+				// Simulated proxy: do NOT spawn anything locally.
+				// The server-spawned replicated projectile will appear here automatically via Actor replication.
 			}
 		}
 		else
@@ -99,6 +93,9 @@ void AProjectileWeapon::Fire(const FVector& HitTarget)
 						SpawnedProjectile->damage = Damage;	
 						SpawnedProjectile->headShotDamage = HeadShotDamage;
 						SpawnedProjectile->Owner = InstigatorPawn;
+						// Set TraceStart so damage falloff calculation in OnHit uses correct distance
+						SpawnedProjectile->TraceStart = SocketTransform.GetLocation();
+						SpawnedProjectile->InitialVelocity = SpawnedProjectile->GetActorForwardVector() * SpawnedProjectile->InitialSpeed;
 					}
 				}
 			}

@@ -16,6 +16,8 @@ AProjectileGranade::AProjectileGranade()
 	ProjectileMovementComponent->bRotationFollowsVelocity = true;
 	ProjectileMovementComponent->SetIsReplicated(true);
 	ProjectileMovementComponent->bShouldBounce = true;
+	// Replicate actor position/rotation so all clients see the grenade bouncing correctly
+	SetReplicateMovement(true);
 	ProjectileMovementComponent->Bounciness = 0.15f;  // Very low bounce (barely bounces)
 	ProjectileMovementComponent->Friction = 0.8f;     // High friction to stop quickly
 }
@@ -23,7 +25,7 @@ AProjectileGranade::AProjectileGranade()
 
 void AProjectileGranade::BeginPlay()
 {
-	AActor::BeginPlay();
+	Super::BeginPlay();
 
 	StartDestroyTimer();
 	SpawnTrailSystem();

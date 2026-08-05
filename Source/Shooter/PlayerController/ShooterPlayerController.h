@@ -100,6 +100,16 @@ private:
 
 	bool bReturnToMainMenuOpen = false;
 
+	// Scoreboard (shown while Tab is held)
+	UPROPERTY(EditAnywhere, Category = "HUD")
+	TSubclassOf<class UScoreboardWidget> ScoreboardClass;
+
+	UPROPERTY()
+	class UScoreboardWidget* ScoreboardWidget;
+
+	void ShowScoreboard();
+	void HideScoreboard();
+
 	UPROPERTY()
 	class AShooterHud* ShooterHUD;
 	UPROPERTY()

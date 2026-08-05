@@ -68,6 +68,10 @@ public:
 		float Angle;
 	bool inFirst = false;
 
+	// Saved from Blueprint/editor values on BeginPlay — restored when switching back to third person
+	float DefaultArmLength = 300.f;
+	FVector DefaultSocketOffset = FVector::ZeroVector;
+
 
 		void ServerShowDamageIndicator(AActor* DamagedActor, AActor* DamageCauser);
 
@@ -282,10 +286,10 @@ private:
 
 	// Health Regeneration
 	UPROPERTY(EditAnywhere, Category = "PlayerStats")
-	float HealthRegenRate = 5.f; // Health per second
+	float HealthRegenRate = 25.f; // HP per second — ~4s for full heal (Apex/Titanfall standard)
 
 	UPROPERTY(EditAnywhere, Category = "PlayerStats")
-	float HealthRegenDelay = 6.f; // Seconds to wait before regen starts
+	float HealthRegenDelay = 1.5f; // Seconds after last damage before regen begins
 
 	float TimeSinceLastDamage = 0.f;
 	bool bIsRegeneratingHealth = false;

@@ -18,6 +18,7 @@
 #include "Shooter/GameState/ShooterGameState.h"
 #include "Components/Image.h"
 #include "Shooter/PlayerState/ShooterPlayerState.h"
+#include "Shooter/HUD/ScoreboardWidget.h"
 
 void AShooterPlayerController::BeginPlay()
 {
@@ -289,23 +290,29 @@ void AShooterPlayerController::ClientElimAnnoucement_Implementation(AShooterPlay
 void AShooterPlayerController::ClientShowCooldownAnnouncement_Implementation(const FString& AnnouncementText, const FString& InfoText)
 {
 	ShooterHUD = ShooterHUD == nullptr ? Cast<AShooterHud>(GetHUD()) : ShooterHUD;
-	if (ShooterHUD)
-	{
-		// Remove character overlay
-		if (ShooterHUD->CharaterOverlay)
-		{
-			ShooterHUD->CharaterOverlay->RemoveFromParent();
-		}
+	if (ShooterHUD == nullptr) return;
 
-		// Show announcement widget with match results
-		if (ShooterHUD->AnnouncementWidget &&
-			ShooterHUD->AnnouncementWidget->AnnouncementText &&
-			ShooterHUD->AnnouncementWidget->infoText)
-		{
-			ShooterHUD->AnnouncementWidget->SetVisibility(ESlateVisibility::Visible);
-			ShooterHUD->AnnouncementWidget->AnnouncementText->SetText(FText::FromString(AnnouncementText));
-			ShooterHUD->AnnouncementWidget->infoText->SetText(FText::FromString(InfoText));
-		}
+	// Remove character overlay
+	if (ShooterHUD->CharaterOverlay)
+	{
+		ShooterHUD->CharaterOverlay->RemoveFromParent();
+	}
+
+	// Lazily create the announcement widget if it wasn't created during warmup.
+	// This is the common case on clients that joined after WaitingToStart ended.
+	if (ShooterHUD->AnnouncementWidget == nullptr)
+	{
+		ShooterHUD->AddAnnouncement();
+	}
+
+	// Show announcement widget with match results
+	if (ShooterHUD->AnnouncementWidget &&
+		ShooterHUD->AnnouncementWidget->AnnouncementText &&
+		ShooterHUD->AnnouncementWidget->infoText)
+	{
+		ShooterHUD->AnnouncementWidget->SetVisibility(ESlateVisibility::Visible);
+		ShooterHUD->AnnouncementWidget->AnnouncementText->SetText(FText::FromString(AnnouncementText));
+		ShooterHUD->AnnouncementWidget->infoText->SetText(FText::FromString(InfoText));
 	}
 }
 
@@ -347,6 +354,31 @@ void AShooterPlayerController::SetupInputComponent()
 	if (InputComponent == nullptr) return;
 
 	InputComponent->BindAction("Quit", IE_Pressed, this, &AShooterPlayerController::ShowReturnToMainMenu);
+	InputComponent->BindAction("Scoreboard", IE_Pressed,  this, &AShooterPlayerController::ShowScoreboard);
+	InputComponent->BindAction("Scoreboard", IE_Released, this, &AShooterPlayerController::HideScoreboard);
+}
+
+void AShooterPlayerController::ShowScoreboard()
+{
+	if (ScoreboardClass == nullptr) return;
+
+	if (ScoreboardWidget == nullptr)
+	{
+		ScoreboardWidget = CreateWidget<UScoreboardWidget>(this, ScoreboardClass);
+	}
+	if (ScoreboardWidget)
+	{
+		ScoreboardWidget->RefreshScoreboard();
+		ScoreboardWidget->AddToViewport(10); // zorder above the game HUD
+	}
+}
+
+void AShooterPlayerController::HideScoreboard()
+{
+	if (ScoreboardWidget && ScoreboardWidget->IsInViewport())
+	{
+		ScoreboardWidget->RemoveFromParent();
+	}
 }
 
 //void AShooterPlayerController::SetHudHealth(float Health, float MaxHealth)
