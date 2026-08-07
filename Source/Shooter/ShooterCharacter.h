@@ -68,10 +68,6 @@ public:
 		float Angle;
 	bool inFirst = false;
 
-	// Saved from Blueprint/editor values on BeginPlay — restored when switching back to third person
-	float DefaultArmLength = 300.f;
-	FVector DefaultSocketOffset = FVector::ZeroVector;
-
 
 		void ServerShowDamageIndicator(AActor* DamagedActor, AActor* DamageCauser);
 
