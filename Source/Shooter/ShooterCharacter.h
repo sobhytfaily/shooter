@@ -39,6 +39,7 @@ public:
 	void PlayHitReactMontage();
 	void PlayElimMontage();
 	void PlaySwapMontage();
+	void AccelerateGrenadeMontage(float PlayRate);
 	void Elim(bool bPlayerLeftGame);
 
 	void SetTeamColor(ETeam Team);

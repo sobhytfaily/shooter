@@ -507,7 +507,7 @@ void UCombatComponent::EquipWeapon(AWeapon* WeaponToEquip)
 void UCombatComponent::SwapWeapon()
 {
 	if (CombatState != ECombatState::ECS_Unoccupied || Character == nullptr) return;
-	
+
 	Character->PlaySwapMontage();
 	Character->bFinishedSwaping = false;
 	CombatState = ECombatState::ECS_SwapingWeapons;
@@ -515,6 +515,21 @@ void UCombatComponent::SwapWeapon()
 	AWeapon* TempWeapon = EquippedWeapon;
 	EquippedWeapon = SecondaryWeapon;
 	SecondaryWeapon = TempWeapon;
+}
+void UCombatComponent::ServerSwapWeapon_Implementation()
+{
+	if (ShouldSwapWeapons())
+	{
+		SwapWeapon();
+	}
+}
+void UCombatComponent::ServerFinishSwap_Implementation()
+{
+	if (CombatState == ECombatState::ECS_SwapingWeapons)
+	{
+		FinishSwapWeapons();
+		CombatState = ECombatState::ECS_Unoccupied;
+	}
 }
 void UCombatComponent::EquipPrimaryWeapon(AWeapon* WeaponToEquip)
 {
@@ -863,6 +878,13 @@ void UCombatComponent::FinishSwap()
 	{
 		CombatState = ECombatState::ECS_Unoccupied;
 	}
+	// For locally-controlled non-authority clients: reset the state we set locally
+	// and tell the server to reset too (in case the server-side anim notify didn't fire).
+	if (Character && !Character->HasAuthority() && Character->IsLocallyControlled())
+	{
+		CombatState = ECombatState::ECS_Unoccupied;
+		ServerFinishSwap();
+	}
 	if (Character)
 	{
 		Character->bFinishedSwaping = true;
@@ -913,6 +935,9 @@ void UCombatComponent::ThrowGernadeFinish()
 }
 void UCombatComponent::LunchGernade()
 {
+	// Clear aiming flags in case the player is still holding the button when the notify fires.
+	bIsAimingGrenade = false;
+	bIsAimingSmokeGrenade = false;
 	ShowAttachedGernade(false);
 	if(Character && Character->IsLocallyControlled())
 	{
@@ -1076,6 +1101,9 @@ void UCombatComponent::GrenadeButtonPressed()
 	bIsAimingGrenade = true;
 	bIsAimingSmokeGrenade = false;
 	ShowGrenadeTrajectory(true);
+	// Start the throw animation immediately so windup plays while the player aims.
+	// LunchGernade notify fires naturally during the animation.
+	ThrowGernade();
 }
 
 void UCombatComponent::GrenadeButtonReleased()
@@ -1085,8 +1113,11 @@ void UCombatComponent::GrenadeButtonReleased()
 	bIsAimingGrenade = false;
 	ShowGrenadeTrajectory(false);
 
-	// Now actually throw the grenade
-	ThrowGernade();
+	// Speed up any remaining windup so the throw feels instant on release.
+	if (Character)
+	{
+		Character->AccelerateGrenadeMontage(3.f);
+	}
 }
 
 void UCombatComponent::SmokeGrenadeButtonPressed()
@@ -1099,6 +1130,8 @@ void UCombatComponent::SmokeGrenadeButtonPressed()
 	bIsAimingSmokeGrenade = true;
 	bIsAimingGrenade = false;
 	ShowGrenadeTrajectory(true);
+	// Start the throw animation immediately so windup plays while the player aims.
+	ThrowSmokeGernade();
 }
 
 void UCombatComponent::SmokeGrenadeButtonReleased()
@@ -1108,8 +1141,11 @@ void UCombatComponent::SmokeGrenadeButtonReleased()
 	bIsAimingSmokeGrenade = false;
 	ShowGrenadeTrajectory(false);
 
-	// Now actually throw the smoke grenade
-	ThrowSmokeGernade();
+	// Speed up any remaining windup so the throw feels instant on release.
+	if (Character)
+	{
+		Character->AccelerateGrenadeMontage(3.f);
+	}
 }
 
 void UCombatComponent::ShowGrenadeTrajectory(bool bShow)
