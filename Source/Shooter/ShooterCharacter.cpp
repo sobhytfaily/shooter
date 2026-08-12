@@ -364,7 +364,7 @@ void AShooterCharacter::Tick(float DeltaTime)
 			// Switching TO First Person
 			if (CameraBoom && FollowCamera && GetMesh())
 			{
-				CameraBoom->SocketOffset = FVector(25, 10, 20);
+				CameraBoom->SocketOffset = FVector(25, 10, 30);
 				CameraBoom->TargetArmLength = 0.f;
 				FollowCamera->SetFieldOfView(90.f);
 				inFirst = true;
