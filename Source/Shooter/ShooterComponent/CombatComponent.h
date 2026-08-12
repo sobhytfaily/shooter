@@ -59,6 +59,12 @@ protected:
 	UFUNCTION(Server, Reliable)
 	void SeverSetAiming(bool bisAiming);
 
+	UFUNCTION(Server, Reliable)
+	void ServerSwapWeapon();
+
+	UFUNCTION(Server, Reliable)
+	void ServerFinishSwap();
+
 	UFUNCTION()void OnRep_EuippedWeapon();
 	UFUNCTION()void OnRep_SecondaryWeapon();
 

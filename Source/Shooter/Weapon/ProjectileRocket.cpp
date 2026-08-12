@@ -19,17 +19,18 @@ AProjectileRocket::AProjectileRocket()
 	RocketMovementComponent = CreateDefaultSubobject<URocketMovementComponent>(TEXT("Rocket movement"));
 	RocketMovementComponent->bRotationFollowsVelocity = true;
 	RocketMovementComponent->SetIsReplicated(true);
+	// Replicate actor position/rotation so all clients see the rocket moving correctly
+	SetReplicateMovement(true);
 }
 
 
 
 void AProjectileRocket::BeginPlay()
 {
+	// Note: Super::BeginPlay() already registers OnHit on the server via AProjectile::BeginPlay.
+	// We must NOT register it again here — that would cause double damage/explosion on every hit.
 	Super::BeginPlay();
-	if (!HasAuthority())
-	{
-		CollisionBox->OnComponentHit.AddDynamic(this, &AProjectileRocket::OnHit);
-	}
+
 	SpawnTrailSystem();
 	if(ProjectileLoop && LoopAttenuation)
 	{
@@ -76,7 +77,7 @@ void AProjectileRocket::OnHit(UPrimitiveComponent* HitCom, AActor* OtherActor, U
 	{
 		TrailComponent->Deactivate();
 	}
-	if(ProjectileLoop && ProjectileLoopComponent->IsPlaying())
+	if(ProjectileLoopComponent && ProjectileLoop && ProjectileLoopComponent->IsPlaying())
 	{
 		ProjectileLoopComponent->Stop();
 	}

@@ -37,6 +37,14 @@ void ABulletShell::OnHit(
 		return;
 	}
 
+	// Validate hit data - ensure we have a valid impact point
+	if (!Hit.IsValidBlockingHit())
+	{
+		Destroy();
+		return;
+	}
+
+	// Play sound if set, with null check
 	if (ShellSound != nullptr)
 	{
 		UGameplayStatics::PlaySoundAtLocation(

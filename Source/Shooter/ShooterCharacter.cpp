@@ -219,15 +219,17 @@ void AShooterCharacter::BeginPlay()
 	UpdateHudHealth();
 	GetMesh()->UnHideBoneByName(FName("neck_01"));
 
-	// Initialize first person camera on spawn
-	if (IsLocallyControlled() && CameraBoom && FollowCamera)
+	// Start in third person with known-good camera values
+	if (CameraBoom)
 	{
-		CameraBoom->SocketOffset = FVector(25, 10, 5);
-		CameraBoom->TargetArmLength = 0.f;
-		FollowCamera->SetFieldOfView(90.f);
-		inFirst = true;
-		SetFirstPersonBodyVisibility(true);
-		MaskMesh->SetVisibility(false);
+		CameraBoom->TargetArmLength = 300.f;
+		CameraBoom->SocketOffset    = FVector(0.f, 100.f, 50.f);
+	}
+	if (IsLocallyControlled())
+	{
+		inFirst = false;
+		SetFirstPersonBodyVisibility(false);
+		if (MaskMesh) MaskMesh->SetVisibility(false);
 	}
 
 	if (HasAuthority())
@@ -257,7 +259,10 @@ void AShooterCharacter::BeginPlay()
 	}
 	SpawnDefaultWeapon();
 	UpdateHudAmmo();
-	ChangeFOV();
+	// Do NOT call ChangeFOV() on respawn — camera state is managed by the engine/blueprint.
+	// Calling it here would flip to first-person on every respawn.
+	Changefov = false;
+	inFirst = false;
 	IntializedHud = false;
 
 	// Ensure weapon visibility is correct after spawning default weapon in first person
@@ -342,11 +347,11 @@ void AShooterCharacter::Tick(float DeltaTime)
 	{
 		if (bIsCrouched)
 		{
-			CameraBoom->SocketOffset.Z = FMath::FInterpTo(CameraBoom->SocketOffset.Z, -20.f, DeltaTime, 20.f); 
+			CameraBoom->SocketOffset.Z = FMath::FInterpTo(CameraBoom->SocketOffset.Z, -15.f, DeltaTime, 20.f); 
 		}
 		else
 		{
-			CameraBoom->SocketOffset.Z = FMath::FInterpTo(CameraBoom->SocketOffset.Z, 10.f, DeltaTime, 20.f);
+			CameraBoom->SocketOffset.Z = FMath::FInterpTo(CameraBoom->SocketOffset.Z, 15.f, DeltaTime, 20.f);
 		}
 	}
 	HideCameraWhenCharacterClose();
@@ -359,16 +364,45 @@ void AShooterCharacter::Tick(float DeltaTime)
 			// Switching TO First Person
 			if (CameraBoom && FollowCamera && GetMesh())
 			{
-				CameraBoom->SocketOffset = FVector(25, 10, 5);
+				CameraBoom->SocketOffset = FVector(25, 10, 30);
 				CameraBoom->TargetArmLength = 0.f;
 				FollowCamera->SetFieldOfView(90.f);
 				inFirst = true;
 
 				if (IsLocallyControlled())
-				{
-					SetFirstPersonBodyVisibility(true);
-					MaskMesh->SetVisibility(false);
-				}
+					{
+						GetMesh()->SetOwnerNoSee(true);
+						MaskMesh->SetVisibility(false);
+
+						// Hide any extra skeletal mesh components (face, helmet, etc.) added in Blueprint
+						TArray<USkeletalMeshComponent*> SkelMeshComps;
+						GetComponents<USkeletalMeshComponent>(SkelMeshComps);
+						for (USkeletalMeshComponent* SkelComp : SkelMeshComps)
+						{
+							if (SkelComp != GetMesh())
+							{
+								SkelComp->SetOwnerNoSee(true);
+							}
+						}
+
+						// Hide any extra static mesh components (face/helmet accessories) added in Blueprint
+						TArray<UStaticMeshComponent*> StaticMeshComps;
+						GetComponents<UStaticMeshComponent>(StaticMeshComps);
+						for (UStaticMeshComponent* StaticComp : StaticMeshComps)
+						{
+							if (StaticComp != AttachedGernade)
+							{
+								StaticComp->SetOwnerNoSee(true);
+							}
+						}
+
+						APlayerController* PC = Cast<APlayerController>(GetController());
+						if (PC && PC->PlayerCameraManager)
+						{
+							PC->PlayerCameraManager->ViewPitchMin = -60.f;
+							PC->PlayerCameraManager->ViewPitchMax = 70.f;
+						}
+					}
 				Changefov = false;
 			}
 		}
@@ -378,8 +412,37 @@ void AShooterCharacter::Tick(float DeltaTime)
 			// Show meshes immediately at start of transition
 			if (IsLocallyControlled() && inFirst)
 			{
-				SetFirstPersonBodyVisibility(false);
+				GetMesh()->SetOwnerNoSee(false);
 				MaskMesh->SetVisibility(true);
+
+				// Restore any extra skeletal mesh components hidden in first person
+				TArray<USkeletalMeshComponent*> SkelMeshComps;
+				GetComponents<USkeletalMeshComponent>(SkelMeshComps);
+				for (USkeletalMeshComponent* SkelComp : SkelMeshComps)
+				{
+					if (SkelComp != GetMesh())
+					{
+						SkelComp->SetOwnerNoSee(false);
+					}
+				}
+
+				// Restore any extra static mesh components hidden in first person
+				TArray<UStaticMeshComponent*> StaticMeshComps;
+				GetComponents<UStaticMeshComponent>(StaticMeshComps);
+				for (UStaticMeshComponent* StaticComp : StaticMeshComps)
+				{
+					if (StaticComp != AttachedGernade)
+					{
+						StaticComp->SetOwnerNoSee(false);
+					}
+				}
+
+				APlayerController* PC = Cast<APlayerController>(GetController());
+				if (PC && PC->PlayerCameraManager)
+				{
+					PC->PlayerCameraManager->ViewPitchMin = -89.9f;
+					PC->PlayerCameraManager->ViewPitchMax = 89.9f;
+				}
 			}
 
 			CameraBoom->SocketOffset = FMath::VInterpTo(CameraBoom->SocketOffset, FVector(0, 100, 50), DeltaTime, 20.f);
@@ -919,6 +982,25 @@ void AShooterCharacter::HideCameraWhenCharacterClose()
 		{
 			GetMesh()->SetOwnerNoSee(bScopedSniper);
 			GetMesh()->bCastHiddenShadow = true;
+
+			// When NOT fully hidden via OwnerNoSee, hide head/neck bones explicitly
+			// so they never clip through the camera in first person.
+			if (!bScopedSniper)
+			{
+				SetFirstPersonBodyVisibility(true);
+			}
+		}
+
+		// Hide every extra skeletal mesh component (face, helmet, hair, etc.)
+		// that was added in Blueprint — re-applied each tick so it survives any reset.
+		TArray<USkeletalMeshComponent*> SkelComps;
+		GetComponents<USkeletalMeshComponent>(SkelComps);
+		for (USkeletalMeshComponent* SkelComp : SkelComps)
+		{
+			if (SkelComp != GetMesh())
+			{
+				SkelComp->SetOwnerNoSee(true);
+			}
 		}
 
 		if (MaskMesh)
@@ -932,6 +1014,18 @@ void AShooterCharacter::HideCameraWhenCharacterClose()
 	if (GetMesh())
 	{
 		GetMesh()->SetOwnerNoSee(false);
+		SetFirstPersonBodyVisibility(false); // Restore head/neck bones for third person
+	}
+
+	// Restore extra skeletal mesh components when switching back to third person
+	TArray<USkeletalMeshComponent*> SkelComps;
+	GetComponents<USkeletalMeshComponent>(SkelComps);
+	for (USkeletalMeshComponent* SkelComp : SkelComps)
+	{
+		if (SkelComp != GetMesh())
+		{
+			SkelComp->SetOwnerNoSee(false);
+		}
 	}
 
 	// Third-person distance-based hiding
@@ -1099,6 +1193,14 @@ void AShooterCharacter::PlayGernadeMontage()
 	if (AnimInstance && ThrowGrenadeMontage)
 	{
 		AnimInstance->Montage_Play(ThrowGrenadeMontage);
+	}
+}
+void AShooterCharacter::AccelerateGrenadeMontage(float PlayRate)
+{
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (AnimInstance && ThrowGrenadeMontage && AnimInstance->Montage_IsPlaying(ThrowGrenadeMontage))
+	{
+		AnimInstance->Montage_SetPlayRate(ThrowGrenadeMontage, PlayRate);
 	}
 }
 AWeapon* AShooterCharacter::GetEqiuppedWeapon()
@@ -1376,7 +1478,7 @@ void AShooterCharacter::SwapToPrimaryWeapon()
 				PlaySwapMontage();
 				Combat->CombatState = ECombatState::ECS_SwapingWeapons;
 				bFinishedSwaping = false;
-				ServerEquipButtonPressed();
+				Combat->ServerSwapWeapon();
 			}
 		}
 	}
@@ -1404,7 +1506,7 @@ void AShooterCharacter::SwapToSecondaryWeapon()
 				PlaySwapMontage();
 				Combat->CombatState = ECombatState::ECS_SwapingWeapons;
 				bFinishedSwaping = false;
-				ServerEquipButtonPressed();
+				Combat->ServerSwapWeapon();
 			}
 		}
 	}

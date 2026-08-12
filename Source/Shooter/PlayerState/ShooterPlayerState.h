@@ -36,7 +36,8 @@ private:
 	void OnRep_Team();
 
 public:
-	FORCEINLINE  ETeam GetTeam() const  { return Team; }
+	FORCEINLINE ETeam GetTeam() const { return Team; }
 	void SetTeam(ETeam TeamToSet);
+	FORCEINLINE int32 GetDeaths() const { return Deaths; }
 
 };

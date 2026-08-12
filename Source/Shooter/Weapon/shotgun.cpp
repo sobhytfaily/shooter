@@ -43,8 +43,10 @@ void Ashotgun::FireShotgun(const TArray<FVector_NetQuantize>& HitTargets)
     APawn* OwnerPawn = Cast<APawn>(GetOwner());
     if (OwnerPawn == nullptr) return;
     AController* InstigatorController = OwnerPawn->GetController();
+
     const USkeletalMeshSocket* MuzzleFlashSocket = GetWeaponMesh()->GetSocketByName("MuzzleFlash");
-    if (MuzzleFlashSocket)
+    if (MuzzleFlashSocket == nullptr) return;
+
     {
         const FTransform SocketTransform = MuzzleFlashSocket->GetSocketTransform(GetWeaponMesh());
         const FVector Start = SocketTransform.GetLocation();
@@ -57,7 +59,7 @@ void Ashotgun::FireShotgun(const TArray<FVector_NetQuantize>& HitTargets)
             FHitResult FireHit;
             WeaponTraceHit(Start, HitTarget, FireHit);
             AShooterCharacter* ShooterCharacter = Cast<AShooterCharacter>(FireHit.GetActor());
-            if (ShooterCharacter)
+            if (ShooterCharacter && FireHit.IsValidBlockingHit())
             {
                 const bool bHeadShot = FireHit.BoneName == FName("head") || FireHit.BoneName == FName("neck_01");
                 const float HitDistance = (FireHit.ImpactPoint - Start).Size();
@@ -166,7 +168,7 @@ void Ashotgun::FireShotgun(const TArray<FVector_NetQuantize>& HitTargets)
         {
             PlayerCharacter = PlayerCharacter == nullptr ? Cast<AShooterCharacter>(OwnerPawn) : PlayerCharacter;
             PlayerController = PlayerController == nullptr ? Cast<AShooterPlayerController>(InstigatorController) : PlayerController;
-            if (PlayerCharacter && PlayerController && PlayerCharacter->GetLagCompansationComponent() && PlayerCharacter->IsLocallyControlled() && PlayerCharacter->IsLocallyControlled())
+            if (PlayerCharacter && PlayerController && PlayerCharacter->GetLagCompansationComponent() && PlayerCharacter->IsLocallyControlled())
             {
                 PlayerCharacter->GetLagCompansationComponent()->ShotgunServerScoreRequest(
                     HitCharacters,

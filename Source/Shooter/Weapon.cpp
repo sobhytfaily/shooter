@@ -49,6 +49,7 @@ void AWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeP
 
 	DOREPLIFETIME(AWeapon, WeaponState);
 	DOREPLIFETIME_CONDITION(AWeapon, bUseServerSideRewind, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(AWeapon, Ammo, COND_OwnerOnly);
 }
 
 
@@ -106,9 +107,16 @@ void AWeapon::OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActo
 
 void AWeapon::SpendRound()
 {
-	
+	// Guard clause: prevent spending ammo if magazine is empty
+	if (Ammo <= 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Cannot spend round - Weapon %s has no ammo!"), *GetName());
+		return;
+	}
+
 	Ammo = FMath::Clamp(Ammo - 1, 0, MagCapacity);
 	SetHudAmmo();
+
 	if (HasAuthority())
 	{
 		ClientUpdateAmmo(Ammo);
@@ -116,6 +124,13 @@ void AWeapon::SpendRound()
 	else
 	{
 		Sequence++;
+	}
+
+	// Log and notify if weapon is now empty after firing
+	if (IsEmpty())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Weapon %s magazine is now empty - reload needed!"), *GetName());
+		// Note: Reload logic should be handled by CombatComponent based on reserve ammo availability
 	}
 }
 
@@ -129,25 +144,77 @@ void AWeapon::ClientUpdateAmmo_Implementation(int32 ServerAmmo)
 }
 void AWeapon::AddAmmo(int32 AmmoToAdd)
 {
+	// Check if weapon was empty before adding ammo
+	bool bWasEmpty = IsEmpty();
+
+	// Clamp the ammo value to valid range
 	Ammo = FMath::Clamp(Ammo + AmmoToAdd, 0, MagCapacity);
+
 	SetHudAmmo();
 	ClientAddAmmo(AmmoToAdd);
+
+	// Handle empty-to-full transition (weapon went from empty to having ammo)
+	if (bWasEmpty && Ammo > 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Weapon %s received ammo - now has %d/%d rounds"), *GetName(), Ammo, MagCapacity);
+
+		// Trigger reload logic on server if weapon had no ammo but now has some
+		if (HasAuthority())
+		{
+			// Notify the combat component or character that this weapon can now fire
+			// This prevents the reload loop by making the transition explicit
+			AActor* OwnerActor = GetOwner();
+			if (OwnerActor)
+			{
+				AShooterCharacter* Character = Cast<AShooterCharacter>(OwnerActor);
+				if (Character && Character->getCombatComponent())
+				{
+					// Signal that weapon has ammo available for firing
+					// Actual reload trigger should be handled by CombatComponent
+					UE_LOG(LogTemp, Log, TEXT("Notifying CombatComponent that %s has ammo available"), *GetName());
+				}
+			}
+		}
+	}
+	else if (IsFull())
+	{
+		UE_LOG(LogTemp, Log, TEXT("Weapon %s is now full with %d/%d rounds"), *GetName(), Ammo, MagCapacity);
+	}
+	else if (Ammo > 0 && Ammo < MagCapacity)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Weapon %s has %d/%d rounds"), *GetName(), Ammo, MagCapacity);
+	}
 }
 void AWeapon::ClientAddAmmo_Implementation(int32 AmmoToAdd)
 {
 	if (HasAuthority()) return;
+
+	// Check if weapon was empty before adding ammo
+	bool bWasEmpty = IsEmpty();
+
 	Ammo = FMath::Clamp(Ammo + AmmoToAdd, 0, MagCapacity);
 
 	AActor* OwnerActor = GetOwner();
 	if (!OwnerActor) return;
 
 	PlayerCharacter = PlayerCharacter == nullptr ? Cast<AShooterCharacter>(OwnerActor) : PlayerCharacter;
-	if (PlayerCharacter && PlayerCharacter->getCombatComponent() && IsFull())
+	if (PlayerCharacter && PlayerCharacter->getCombatComponent())
 	{
-		PlayerCharacter->getCombatComponent()->JumpToShotgunEnd();
-	}
-	SetHudAmmo();
+		// If weapon was empty and now has ammo, notify combat component
+		if (bWasEmpty && Ammo > 0)
+		{
+			UE_LOG(LogTemp, Log, TEXT("Client: Weapon %s now has ammo after being empty"), *GetName());
+			// Combat component can trigger reload based on this state change
+		}
 
+		// If magazine is now full, trigger end animation (e.g., for shotgun reload)
+		if (IsFull())
+		{
+			PlayerCharacter->getCombatComponent()->JumpToShotgunEnd();
+		}
+	}
+
+	SetHudAmmo();
 }
 
 void AWeapon::SetHudAmmo()
@@ -253,6 +320,16 @@ void AWeapon::EnableCustomDepth(bool bEnable)
 
 void AWeapon::SetWeaponState(EWeaponState State)
 {
+	// Validate state transitions
+	if (HasAuthority())
+	{
+		// Log state change information
+		const FString OldState = StaticEnum<EWeaponState>()->GetValueAsString(WeaponState);
+		const FString NewState = StaticEnum<EWeaponState>()->GetValueAsString(State);
+		UE_LOG(LogTemp, Log, TEXT("Weapon %s state changing from %s to %s (Ammo: %d/%d)"), 
+			*GetName(), *OldState, *NewState, Ammo, MagCapacity);
+	}
+
 	WeaponState = State;
 	OnWeaponStateSet();
 }
@@ -271,6 +348,9 @@ void AWeapon::OnWeaponStateSet()
 		OnEquippedSecondary();
 		break;
 	}
+
+	// Update ammo display whenever weapon state changes
+	SetHudAmmo();
 }
 
 void AWeapon::OnPingTooHigh(bool bPingTooHigh)
@@ -283,6 +363,39 @@ void AWeapon::OnPingTooHigh(bool bPingTooHigh)
 void AWeapon::OnRep_WeaponState()
 {
 	OnWeaponStateSet();
+}
+
+void AWeapon::OnRep_Ammo()
+{
+	// Update HUD when ammo is replicated from server
+	SetHudAmmo();
+
+	// Handle ammo state changes
+	AActor* OwnerActor = GetOwner();
+	if (!OwnerActor) return;
+
+	PlayerCharacter = PlayerCharacter == nullptr ? Cast<AShooterCharacter>(OwnerActor) : PlayerCharacter;
+	if (PlayerCharacter)
+	{
+		PlayerController = PlayerController == nullptr ? Cast<AShooterPlayerController>(PlayerCharacter->Controller) : PlayerController;
+		if (PlayerController)
+		{
+			// Update weapon empty/full status on HUD
+			PlayerController->SetHudWeaponAmmo(Ammo);
+
+			// Notify if weapon became empty
+			if (IsEmpty())
+			{
+				// Could add additional logic here for empty state (e.g., disable firing, play sound)
+				UE_LOG(LogTemp, Warning, TEXT("Weapon %s is now empty"), *GetName());
+			}
+			// Notify if weapon is full
+			else if (IsFull())
+			{
+				UE_LOG(LogTemp, Log, TEXT("Weapon %s is now full"), *GetName());
+			}
+		}
+	}
 }
 
 
@@ -312,12 +425,18 @@ void AWeapon::OnEquippedSecondary()
 	if (!OwnerActor) return;
 
 	PlayerCharacter = PlayerCharacter == nullptr ? Cast<AShooterCharacter>(OwnerActor) : PlayerCharacter;
-	if (PlayerCharacter && bUseServerSideRewind)
+	if (PlayerCharacter)
 	{
-		PlayerController = PlayerController == nullptr ? Cast<AShooterPlayerController>(PlayerCharacter->Controller) : PlayerController;
-		if (PlayerController && HasAuthority() && !PlayerController->HighPingDelegate.IsBound())
+		// Update HUD with current ammo state for secondary weapon
+		SetHudAmmo();
+
+		if (bUseServerSideRewind)
 		{
-			PlayerController->HighPingDelegate.AddDynamic(this, &AWeapon::OnPingTooHigh);
+			PlayerController = PlayerController == nullptr ? Cast<AShooterPlayerController>(PlayerCharacter->Controller) : PlayerController;
+			if (PlayerController && HasAuthority() && !PlayerController->HighPingDelegate.IsBound())
+			{
+				PlayerController->HighPingDelegate.AddDynamic(this, &AWeapon::OnPingTooHigh);
+			}
 		}
 	}
 }
@@ -352,12 +471,37 @@ void AWeapon::OnWeaponEquipped()
 	if (!OwnerActor) return;
 
 	PlayerCharacter = PlayerCharacter == nullptr ? Cast<AShooterCharacter>(OwnerActor) : PlayerCharacter;
-	if (PlayerCharacter && bUseServerSideRewind)
+	if (PlayerCharacter)
 	{
-		PlayerController = PlayerController == nullptr ? Cast<AShooterPlayerController>(PlayerCharacter->Controller) : PlayerController;
-		if (PlayerController && HasAuthority() && !PlayerController->HighPingDelegate.IsBound() )
+		// Update HUD with current ammo state
+		SetHudAmmo();
+
+		// Check if the weapon has ammo before attempting any reload logic
+		if (Ammo > 0)
 		{
-			PlayerController->HighPingDelegate.AddDynamic(this, &AWeapon::OnPingTooHigh);
+			// Weapon has ammo - can proceed with normal firing
+			UE_LOG(LogTemp, Log, TEXT("Equipped weapon %s with ammo (%d/%d)"), *GetName(), Ammo, MagCapacity);
+		}
+		else
+		{
+			// Weapon has no ammo - inform player and potentially trigger reload
+			UE_LOG(LogTemp, Warning, TEXT("Equipped weapon %s but it has no ammo - please reload"), *GetName());
+			// Note: Actual reload logic should be handled by CombatComponent based on available reserve ammo
+		}
+
+		// Log additional state for full magazine
+		if (IsFull())
+		{
+			UE_LOG(LogTemp, Log, TEXT("Equipped weapon %s with full magazine"), *GetName());
+		}
+
+		if (bUseServerSideRewind)
+		{
+			PlayerController = PlayerController == nullptr ? Cast<AShooterPlayerController>(PlayerCharacter->Controller) : PlayerController;
+			if (PlayerController && HasAuthority() && !PlayerController->HighPingDelegate.IsBound())
+			{
+				PlayerController->HighPingDelegate.AddDynamic(this, &AWeapon::OnPingTooHigh);
+			}
 		}
 	}
 }
