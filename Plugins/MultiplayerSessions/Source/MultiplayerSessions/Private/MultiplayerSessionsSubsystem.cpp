@@ -43,6 +43,7 @@ void UMultiplayerSessionsSubsystem::CreateSession(int32 NumPublicConnections, FS
 		LastMatchType = MatchType;
 
 		DestroySession();
+		return;
 	}
 
 	// Store the delegate in a FDelegateHandle so we can later remove it from the delegate list
@@ -146,6 +147,12 @@ void UMultiplayerSessionsSubsystem::DestroySession()
 	if (!SessionInterface->DestroySession(NAME_GameSession))
 	{
 		SessionInterface->ClearOnDestroySessionCompleteDelegate_Handle(DestroySessionCompleteDelegateHandle);
+		if (bCreateSessionOnDestroy)
+		{
+			// The create waiting on this destroy can't happen: report it so the menu re-enables Host.
+			bCreateSessionOnDestroy = false;
+			MultiplayerOnCreateSessionComplete.Broadcast(false);
+		}
 		MultiplayerOnDestroySessionComplete.Broadcast(false);
 	}
 }
@@ -186,7 +193,7 @@ void UMultiplayerSessionsSubsystem::OnFindSessionsComplete(bool bWasSuccessful)
 		}
 	}
 
-	if (LastSessionSearch->SearchResults.Num() <= 0)
+	if (!LastSessionSearch.IsValid() || LastSessionSearch->SearchResults.Num() <= 0)
 	{
 		MultiplayerOnFindSessionsComplete.Broadcast(TArray<FOnlineSessionSearchResult>(), false);
 		return;
@@ -213,10 +220,17 @@ void UMultiplayerSessionsSubsystem::OnDestroySessionComplete(FName SessionName, 
 	{
 		SessionInterface->ClearOnDestroySessionCompleteDelegate_Handle(DestroySessionCompleteDelegateHandle);
 	}
-	if (bWasSuccessful && bCreateSessionOnDestroy)
+	if (bCreateSessionOnDestroy)
 	{
 		bCreateSessionOnDestroy = false;
-		CreateSession(LastNumPublicConnections, LastMatchType);
+		if (bWasSuccessful)
+		{
+			CreateSession(LastNumPublicConnections, LastMatchType);
+		}
+		else
+		{
+			MultiplayerOnCreateSessionComplete.Broadcast(false); // menu shows "Failed to create session!" and re-enables Host
+		}
 	}
 	MultiplayerOnDestroySessionComplete.Broadcast(bWasSuccessful);
 }

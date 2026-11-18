@@ -11,7 +11,7 @@ Separate module (`MULTIPLAYERSESSIONS_API`), a dependency of the game module.
 
 Flow: **Host** → `CreateSession` (lobbies, presence, `MatchType` setting) → `OnCreateSession` → `ServerTravel(Lobby?listen)`.
 **Join** → `FindSessions(10000)` (Steam worldwide filter) → `OnFindSessions` picks the lowest-ping session with the
-same `MatchType` → `JoinSession` → `OnJoinSession` → `ClientTravel(resolved address)`.
+same `MatchType` → `JoinSession` → `OnJoinSession` → (on non-Success: on-screen message, Join re-enabled) `ClientTravel(resolved address)`.
 Lobby → match travel: `ALobbyGameMode` (game-flow.md). Leave → `UReturnToMainMenu` (controller-and-hud.md).
 Note: `UMenu::MenuSetup`'s default `LobbyPath` is `/Game/ThirdPersonCPP/Maps/Lobby`; the BP must pass `/Game/Maps/Lobby`.
 
@@ -59,4 +59,4 @@ Close the editor first or use Live Coding (Ctrl+Alt+F11) from inside the editor;
 running editor has loaded.
 
 ## Open issues
-BUG-021 (CreateSession continues after destroy), BUG-022 (join ignores result), BUG-026 (gamepad binding clash).
+BUG-021 / BUG-022 fixed in T-0006 (unverified in editor), BUG-026 (gamepad binding clash).

@@ -86,7 +86,10 @@ void UMenu::OnCreateSession(bool bWasSuccessful)
 				FString(TEXT("Failed to create session!"))
 			);
 		}
-		HostButton->SetIsEnabled(true);
+		if (HostButton)
+		{
+			HostButton->SetIsEnabled(true);
+		}
 	}
 }
 
@@ -124,11 +127,33 @@ void UMenu::OnFindSessions(const TArray<FOnlineSessionSearchResult>& SessionResu
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("[MPMenu] No joinable session found -> re-enabling Join button"));
-	JoinButton->SetIsEnabled(true);
+	if (JoinButton)
+	{
+		JoinButton->SetIsEnabled(true);
+	}
 }
 
 void UMenu::OnJoinSession(EOnJoinSessionCompleteResult::Type Result)
 {
+	if (Result != EOnJoinSessionCompleteResult::Success)
+	{
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(
+				-1,
+				15.f,
+				FColor::Red,
+				FString(TEXT("Failed to join session!"))
+			);
+		}
+		if (JoinButton)
+		{
+			JoinButton->SetIsEnabled(true);
+		}
+		return;
+	}
+
+	bool bTravelled = false;
 	IOnlineSubsystem* Subsystem = IOnlineSubsystem::Get();
 	if (Subsystem)
 	{
@@ -136,19 +161,32 @@ void UMenu::OnJoinSession(EOnJoinSessionCompleteResult::Type Result)
 		if (SessionInterface.IsValid())
 		{
 			FString Address;
-			SessionInterface->GetResolvedConnectString(NAME_GameSession, Address);
+			const bool bResolved = SessionInterface->GetResolvedConnectString(NAME_GameSession, Address);
 			UE_LOG(LogTemp, Warning, TEXT("[MPMenu] OnJoinSession ResolvedAddress=%s"), *Address);
 
 			APlayerController* PlayerController = GetGameInstance()->GetFirstLocalPlayerController();
-			if (PlayerController)
+			if (bResolved && PlayerController)
 			{
 				UE_LOG(LogTemp, Warning, TEXT("[MPMenu] ClientTravel -> %s"), *Address);
 				PlayerController->ClientTravel(Address, ETravelType::TRAVEL_Absolute);
+				bTravelled = true;
 			}
-			else
+			else if (!PlayerController)
 			{
 				UE_LOG(LogTemp, Error, TEXT("[MPMenu] OnJoinSession: no PlayerController"));
 			}
+		}
+	}
+
+	if (!bTravelled)
+	{
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Red, FString(TEXT("Failed to join session!")));
+		}
+		if (JoinButton)
+		{
+			JoinButton->SetIsEnabled(true);
 		}
 	}
 }
@@ -163,7 +201,10 @@ void UMenu::OnStartSession(bool bWasSuccessful)
 
 void UMenu::HostButtonClicked()
 {
-	HostButton->SetIsEnabled(false);
+	if (HostButton)
+	{
+		HostButton->SetIsEnabled(false);
+	}
 	if (MultiplayerSessionsSubsystem)
 	{
 		MultiplayerSessionsSubsystem->CreateSession(NumPublicConnections, MatchType);
@@ -172,7 +213,10 @@ void UMenu::HostButtonClicked()
 
 void UMenu::JoinButtonClicked()
 {
-	JoinButton->SetIsEnabled(false);
+	if (JoinButton)
+	{
+		JoinButton->SetIsEnabled(false);
+	}
 	if (MultiplayerSessionsSubsystem)
 	{
 		MultiplayerSessionsSubsystem->FindSessions(10000);
