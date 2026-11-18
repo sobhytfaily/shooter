@@ -85,14 +85,14 @@ Spawns from `MuzzleFlash` toward the target. Spawn matrix:
 
 ## Projectiles (Projectile.cpp)
 - `AProjectile`: `CollisionBox` root (blocks Visibility/WorldStatic/Pawn/SkeletalMesh), optional `Tracer`,
-  Niagara trail (`SpawnTrailSystem`), `OnHit` bound **server only**, instigator collision ignored for 0.5 s.
+  Niagara trail (`SpawnTrailSystem`), `OnHit` bound on the server (rocket also binds it on clients, cosmetic only), instigator collision ignored for 0.5 s.
 - `ExplodeDamage` (:89): radial damage with fall-off (`damage`, min 10, `DamageInnerRadius` 200, `DamageOuterRadius` 500),
   **can damage the instigator**.
 - `Destroyed` (:142): impact particles + sound (skipped on dedicated server).
-- `AProjectileBullet::OnHit` (ProjectileBullet.cpp:40): server damage when not SSR; locally-controlled SSR shooter sends
+- `AProjectileBullet::OnHit` (ProjectileBullet.cpp:40): server damage (fall-off via `SourceWeapon`, set with `TraceStart`/`InitialVelocity` in every `AProjectileWeapon::Fire` spawn branch) when not SSR; locally-controlled SSR shooter sends
   `ProjectileServerScoreRequest`. Movement not replicated (client-predicted).
 - `AProjectileRocket`: `URocketMovementComponent` keeps flying through blocking hits (`AdvanceNextSubstep`);
-  `OnHit` explodes, hides mesh, stops loop sound, destroys after `DestroyTime`.
+  `OnHit` (server and clients, guarded by `bExploded`) explodes (server-only damage), plays FX/sound, hides mesh, stops loop sound, server destroys after `DestroyTime`; `Destroyed` only calls `AActor::Destroyed` (no duplicate FX).
 - `AProjectileGranade`: bouncy, replicated movement; explodes in `Destroyed` after `DestroyTime`; bounce sound with
   velocity/cooldown gate.
 - `AProjectileSmokeGranade`: no damage; `Destroyed` spawns Cascade and/or Niagara smoke scaled by `SmokeRadius`;
@@ -100,7 +100,7 @@ Spawns from `MuzzleFlash` toward the target. Spawn matrix:
 - `ABulletShell`: physics casing, plays `ShellSound` and destroys on first hit.
 
 ## Open issues
-BUG-004 (rocket `Destroyed` empty), BUG-006 (shotgun pitch), BUG-007 (projectile fall-off never applied),
+(BUG-004/006/007/029 fixed in T-0003, unverified in editor.)
 BUG-009 (ping delegate bound once), BUG-023 (dropped weapons never despawn), PERF-007 (empty ticks),
 PERF-008 (log spam). See `docs/KNOWN_ISSUES.md`.
 

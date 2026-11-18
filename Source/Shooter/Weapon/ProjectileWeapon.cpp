@@ -43,6 +43,9 @@ void AProjectileWeapon::Fire(const FVector& HitTarget)
 							SpawnedProjectile->bUseServerSideRewind = false;
 							SpawnedProjectile->damage = Damage;
 							SpawnedProjectile->headShotDamage = HeadShotDamage;
+							SpawnedProjectile->SourceWeapon = this;
+							SpawnedProjectile->TraceStart = SocketTransform.GetLocation();
+							SpawnedProjectile->InitialVelocity = SpawnedProjectile->GetActorForwardVector() * SpawnedProjectile->InitialSpeed;
 						}
 					}
 				}
@@ -54,6 +57,9 @@ void AProjectileWeapon::Fire(const FVector& HitTarget)
 						if (SpawnedProjectile)
 						{
 							SpawnedProjectile->bUseServerSideRewind = true;
+							SpawnedProjectile->SourceWeapon = this;
+							SpawnedProjectile->TraceStart = SocketTransform.GetLocation();
+							SpawnedProjectile->InitialVelocity = SpawnedProjectile->GetActorForwardVector() * SpawnedProjectile->InitialSpeed;
 						}
 					}
 				}	
@@ -71,6 +77,7 @@ void AProjectileWeapon::Fire(const FVector& HitTarget)
 						if (SpawnedProjectile)
 						{
 							SpawnedProjectile->bUseServerSideRewind = true;
+							SpawnedProjectile->SourceWeapon = this;
 							SpawnedProjectile->TraceStart = SocketTransform.GetLocation();
 							SpawnedProjectile->InitialVelocity = SpawnedProjectile->GetActorForwardVector() * SpawnedProjectile->InitialSpeed;
 						}
@@ -93,6 +100,7 @@ void AProjectileWeapon::Fire(const FVector& HitTarget)
 						SpawnedProjectile->damage = Damage;	
 						SpawnedProjectile->headShotDamage = HeadShotDamage;
 						SpawnedProjectile->Owner = InstigatorPawn;
+						SpawnedProjectile->SourceWeapon = this;
 						// Set TraceStart so damage falloff calculation in OnHit uses correct distance
 						SpawnedProjectile->TraceStart = SocketTransform.GetLocation();
 						SpawnedProjectile->InitialVelocity = SpawnedProjectile->GetActorForwardVector() * SpawnedProjectile->InitialSpeed;

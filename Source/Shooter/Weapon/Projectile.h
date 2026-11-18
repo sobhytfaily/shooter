@@ -22,6 +22,9 @@ public:
 	FVector_NetQuantize TraceStart;
 	FVector_NetQuantize100 InitialVelocity;
 
+	// Weapon that fired this projectile (not replicated); used for damage fall-off
+	TWeakObjectPtr<class AWeapon> SourceWeapon;
+
 	UPROPERTY(EditAnywhere)
 		float InitialSpeed = 15000.f;
 

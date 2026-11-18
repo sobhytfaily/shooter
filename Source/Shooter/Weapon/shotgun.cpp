@@ -101,12 +101,13 @@ void Ashotgun::FireShotgun(const TArray<FVector_NetQuantize>& HitTargets)
                         HitSound,
                         FireHit.ImpactPoint,
                         .5f,
-                        FMath::FRandRange(-.5f, .5f)
+                        FMath::FRandRange(0.85f, 1.15f)
                     );
                 }
             }
 
         }
+        PlayerCharacter = PlayerCharacter == nullptr ? Cast<AShooterCharacter>(GetOwner()) : PlayerCharacter;
         TArray<AShooterCharacter*> HitCharacters;
         //maps character hit to total damage
         TMap<AShooterCharacter*, float> DamageMap;

@@ -74,7 +74,7 @@ void AProjectileBullet::OnHit(UPrimitiveComponent *HitCom, AActor *OtherActor, U
 				const bool bHeadShot = Hit.BoneName == FName("head") || Hit.BoneName == FName("neck_01");
 				const float BaseDamage = bHeadShot ? headShotDamage : damage;
 
-				AWeapon* OwnerWeapon = Cast<AWeapon>(GetOwner());
+				AWeapon* OwnerWeapon = SourceWeapon.Get() != nullptr ? SourceWeapon.Get() : Cast<AWeapon>(GetOwner());
 				float DamageToCause = BaseDamage;
 				if (OwnerWeapon)
 				{

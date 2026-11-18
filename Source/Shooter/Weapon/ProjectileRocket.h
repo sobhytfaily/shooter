@@ -33,6 +33,9 @@ protected:
 	UPROPERTY(VisibleAnywhere)
 	class URocketMovementComponent* RocketMovementComponent;
 private:
-
+	// Guards against running the impact logic twice (cosmetic hit on clients, authoritative hit on server)
+	bool bExploded = false;
+	// Client mirror of the server's 0.5 s instigator-ignore window
+	FTimerHandle ClientInstigatorIgnoreTimer;
 
 };
