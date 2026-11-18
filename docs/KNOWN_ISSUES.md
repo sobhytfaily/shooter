@@ -12,8 +12,8 @@ Severity: **S1** crash / data corruption / game-breaking · **S2** wrong gamepla
 
 | ID | Sev | Location | Problem | Suggested fix | Status |
 |---|---|---|---|---|---|
-| BUG-001 | S1 | `ShooterCharacter.cpp:1399` | `Destroyed()` calls `Super::Destroy()` instead of `Super::Destroyed()` — re-enters destroy, `AActor::Destroyed` (and `OnDestroyed` broadcast) never runs for characters | call `Super::Destroyed()` | open |
-| BUG-015 | S1 | `ShooterCharacter.cpp:876` (`Landed`) → `TeamsGameMode.cpp:56` | fall damage uses `nullptr` instigator; `ATeamsGameMode::CalculateDamage` dereferences `Attacker` → **crash in Teams/CTF on any damaging fall** | null-check `Attacker`/`Victim` in `CalculateDamage` (return `BaseDamage`) | open |
+| BUG-001 | S1 | `ShooterCharacter.cpp:1399` | `Destroyed()` calls `Super::Destroy()` instead of `Super::Destroyed()` — re-enters destroy, `AActor::Destroyed` (and `OnDestroyed` broadcast) never runs for characters | call `Super::Destroyed()` | fixed, unverified in editor (T-0001) |
+| BUG-015 | S1 | `ShooterCharacter.cpp:876` (`Landed`) → `TeamsGameMode.cpp:56` | fall damage uses `nullptr` instigator; `ATeamsGameMode::CalculateDamage` dereferences `Attacker` → **crash in Teams/CTF on any damaging fall** | null-check `Attacker`/`Victim` in `CalculateDamage` (return `BaseDamage`) | fixed, unverified in editor (T-0001) |
 | BUG-002 | S1 | `LagCompensationComponent.cpp:220,247,253,261` | shotgun SSR damage reads the **victim's** equipped weapon (and skips victims without one); DamageCauser is the victim's weapon | use `Character->GetEqiuppedWeapon()` (shooter) | open |
 | BUG-004 | S2 | `Weapon/ProjectileRocket.cpp:85` | `Destroyed()` is empty — no `Super::Destroyed()`; `OnHit` runs only on server so **clients never see rocket impact FX/sound** | call `Super::Destroyed()` (or multicast impact cosmetics) and avoid double FX on server | open |
 | BUG-007 | S2 | `Weapon/ProjectileWeapon.cpp:28` vs `Weapon/ProjectileBullet.cpp:60,77` | projectile Owner is the character, but `OnHit` casts `GetOwner()` to `AWeapon` → damage fall-off never applied; server-local SSR branch never sets `TraceStart` | pass weapon via a member/instigator chain; set `TraceStart` in all spawn branches | open |
@@ -21,7 +21,7 @@ Severity: **S1** crash / data corruption / game-breaking · **S2** wrong gamepla
 | BUG-009 | S2 | `Weapon.cpp:436,501,532` | `!HighPingDelegate.IsBound()` guard → only the first weapon ever binds; swapped/picked-up weapons never get ping updates | use `IsAlreadyBound(this, &AWeapon::OnPingTooHigh)` / `AddUniqueDynamic` | open |
 | BUG-010 | S2 | `ShooterPlayerController.cpp:132-170` | `HandleCooldown` runs on every server-side PC and each loops all PCs → N² RPCs; winner text computed from the sending PC's perspective (wrong "You Are The Winner") | send from GameMode once per PC, compute text per recipient (or on client) | open |
 | BUG-013 | S2 | `ShooterGameMode.cpp:69,77` | warm-up uses `GetTimeSeconds`, in-progress/cooldown use `GetRealTimeSeconds`; clients use `GetTimeSeconds` → timer drift/desync | use `GetTimeSeconds` everywhere | open |
-| BUG-014 | S2 | `TeamsGameMode.cpp:39` | `Logout` override never calls `Super::Logout` | add `Super::Logout(Exiting)` | open |
+| BUG-014 | S2 | `TeamsGameMode.cpp:39` | `Logout` override never calls `Super::Logout` | add `Super::Logout(Exiting)` | fixed, unverified in editor (T-0001) |
 | BUG-021 | S2 | `Plugins/.../MultiplayerSessionsSubsystem.cpp:39-46` | when a session exists, `DestroySession()` is called but the function **continues** to `CreateSession` → failed/double create | `return;` after `DestroySession()` | open |
 | BUG-023 | S2 | `Weapon.cpp:543` | `DestroyWeapon` body commented out → dropped weapons never despawn (actor count grows over a match) | restore destroy-if-still-dropped | open |
 | BUG-032 | S2 verify | `CombatComponent.cpp:446,455` vs `ShooterCharacter.cpp:209,1735` | two walk-speed sources: Combat `BaseWalkSpeed/AimWalkSpeed` (BP) vs Character `WalkSpeed/SprintSpeed`; releasing aim restores `BaseWalkSpeed`, not `WalkSpeed` | single source of truth for speed | open |
@@ -30,10 +30,10 @@ Severity: **S1** crash / data corruption / game-breaking · **S2** wrong gamepla
 | BUG-006 | S3 | `Weapon/shotgun.cpp:104` | pellet hit-sound pitch `FRandRange(-.5f,.5f)` (≤0 pitch) | e.g. `FRandRange(0.8f,1.2f)` | open |
 | BUG-011 | S3 | `ShooterPlayerController.cpp:654` | `ShooterGameMode->LevelStartingTime` dereferenced before null check (crash if PC is used under a non-Shooter GameMode) | null-check | open |
 | BUG-012 | S3 | `ShooterGameMode.cpp:143` | `RequestRespawn` indexes `StartActors[RandRange(0,-1)]` when map has no PlayerStart | guard `Num()>0` | open |
-| BUG-016 | S3 | `ShooterCharacter.cpp:1376` | `SetTeamColor` guard uses `&&` (should be `||`) | fix condition | open |
-| BUG-017 | S3 | `ShooterCharacter.cpp:~248-252` | `BeginPlay` checks `ElimBotSound` but plays `ElimBotSoundSpawn` | check the sound it plays | open |
-| BUG-018 | S3 | `ShooterCharacter.cpp:333-335` | Tick fallback `if (!Combat) { Combat = ...; Combat->Character = this; }` dereferences null | remove (Combat is a default subobject) | open |
-| BUG-019 | S3 | `ShooterCharacter.cpp:1147` | `SpawnDefaultWeapon` doesn't null-check the spawned weapon | guard | open |
+| BUG-016 | S3 | `ShooterCharacter.cpp:1376` | `SetTeamColor` guard uses `&&` (should be `||`) | fix condition | fixed, unverified in editor (T-0001) |
+| BUG-017 | S3 | `ShooterCharacter.cpp:~248-252` | `BeginPlay` checks `ElimBotSound` but plays `ElimBotSoundSpawn` | check the sound it plays | fixed, unverified in editor (T-0001) |
+| BUG-018 | S3 | `ShooterCharacter.cpp:333-335` | Tick fallback `if (!Combat) { Combat = ...; Combat->Character = this; }` dereferences null | remove (Combat is a default subobject) | fixed, unverified in editor (T-0001) |
+| BUG-019 | S3 | `ShooterCharacter.cpp:1147` | `SpawnDefaultWeapon` doesn't null-check the spawned weapon | guard | fixed, unverified in editor (T-0001) |
 | BUG-020 | S3 | `ShooterHud.cpp:69,83` | kill-feed `ElimMessages` never pruned → grows, holds removed widgets | `ElimMessages.Remove(Msg)` in timer callback | open |
 | BUG-022 | S3 | `Plugins/.../Menu.cpp:130` | `OnJoinSession` ignores `Result`, travels even on failure; Join button not re-enabled | handle non-Success | open |
 | BUG-024 | S3 | `CaptureTheFlagGameMode.cpp:17`, `CaptureTheFlag/FlagZone.cpp:21` | `bValidCapture` unused; no null checks; overlap not authority-gated | gate on `HasAuthority()`, use the flag | open |

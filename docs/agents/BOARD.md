@@ -14,7 +14,6 @@ Grouped so that wave 1 tasks have **disjoint write-sets** and can run in paralle
 
 | ID | Title | Wave | Write-set | Issues |
 |---|---|---|---|---|
-| T-0001 | Character & Teams crash/null fixes | 1 | `ShooterCharacter.cpp`, `TeamsGameMode.cpp` | BUG-001, BUG-015, BUG-014, BUG-016, BUG-017, BUG-018, BUG-019 |
 | T-0002 | Shotgun server-side-rewind damage | 1 | `ShooterComponent/LagCompensationComponent.cpp` | BUG-002, BUG-003 |
 | T-0003 | Projectile fixes (rocket FX on clients, bullet fall-off, shotgun pitch) | 1 | `Weapon/Projectile*.cpp`, `Weapon/ProjectileWeapon.cpp`, `Weapon/shotgun.cpp` | BUG-004, BUG-006, BUG-007, BUG-029 |
 | T-0004 | Weapon lifecycle (dropped despawn, ping delegate per weapon) | 1 | `Weapon.cpp` | BUG-023, BUG-009 |
@@ -28,4 +27,4 @@ Grouped so that wave 1 tasks have **disjoint write-sets** and can run in paralle
 
 | ID | Title | Closed | Notes |
 |---|---|---|---|
-| — | — | — | — |
+| T-0001 | Character & Teams crash/null fixes | 2026-11-18 | review approved, build passed; unverified in editor (playtest checklist in task file) |

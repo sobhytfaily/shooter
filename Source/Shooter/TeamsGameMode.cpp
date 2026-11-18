@@ -39,7 +39,7 @@ void ATeamsGameMode::PostLogin(APlayerController* newPlayer)
 void ATeamsGameMode::Logout(AController* Exiting)
 {
 	AShooterGameState* ShooterGameState = Cast<AShooterGameState>(UGameplayStatics::GetGameState(this));
-	AShooterPlayerState* ShooterState = Exiting->GetPlayerState<AShooterPlayerState>();
+	AShooterPlayerState* ShooterState = Exiting ? Exiting->GetPlayerState<AShooterPlayerState>() : nullptr;
 	if (ShooterGameState && ShooterState)
 	{
 		if (ShooterGameState->RedTeam.Contains(ShooterState))
@@ -51,10 +51,12 @@ void ATeamsGameMode::Logout(AController* Exiting)
 			ShooterGameState->BlueTeam.Remove(ShooterState);
 		}
 	}
+	Super::Logout(Exiting);
 }
 
 float ATeamsGameMode::CalculateDamage(AController* Attacker, AController* Victim, float BaseDamage)
 {
+	if (Attacker == nullptr || Victim == nullptr) return BaseDamage;
 	AShooterPlayerState* AttackerPState = Attacker->GetPlayerState<AShooterPlayerState>();
 	AShooterPlayerState* VictimPState = Victim->GetPlayerState<AShooterPlayerState>();
 	if (AttackerPState == nullptr || VictimPState == nullptr) return BaseDamage;

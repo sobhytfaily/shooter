@@ -79,7 +79,7 @@ the client's `OnLeftGame` delegate then destroys the session (see online-session
 
 ## Gotchas / open issues
 See `docs/KNOWN_ISSUES.md`: BUG-012 (respawn with no PlayerStart), BUG-013 (mixed clocks in Tick),
-BUG-014 (Teams `Logout` skips `Super`), **BUG-015 (fall damage crashes Teams/CTF)**, BUG-024 (CTF capture checks), BUG-031 (TopScore stale).
+BUG-024 (CTF capture checks), BUG-031 (TopScore stale).
 
 ## How to extend
 - **New game mode:** subclass `AShooterGameMode` (or `ATeamsGameMode`), override `PlayerEliminated` / `CalculateDamage`,

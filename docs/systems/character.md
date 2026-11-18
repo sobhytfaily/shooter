@@ -32,7 +32,7 @@ One-time HUD init → `UpdateHudAmmo` → `RegenerateHealth` (server) → `Updat
 - `RegenerateHealth` (:287): after `HealthRegenDelay` (1.5 s) heals `HealthRegenRate` (25/s). (Older root md files
   document different numbers — the code is authoritative.)
 - `Landed` (:876): fall damage from impact speed, `FallDamageMinHeight 300` → 0, `FallDamageLethalHeight 700` → 100%.
-  Applied with a **null instigator controller** (see BUG-015).
+  Applied with a **null instigator controller** (Teams `CalculateDamage` now null-checks; BUG-015 fixed).
 - `Elim` (:1369) → `DropOrDestroyWeapons` + `MulticaseElim` (:1300): elim montage, dissolve material + timeline,
   disable movement/collision, elim-bot FX, hide sniper scope, `ElimTimer` → `ElimTimerFinished` (:1411) → respawn or
   broadcast `OnLeftGame`.
@@ -62,6 +62,5 @@ Values are read by `UShooterAnimInstance` (animation.md).
 start teleport), overhead name. `SpawnDefaultWeapon` (:1140, server) spawns `DefaultWeaponClass` with `bDestroyWeapon=true`.
 
 ## Open issues
-**BUG-001 (`Destroyed` calls `Super::Destroy`)**, **BUG-015 (fall damage null instigator crashes team modes)**,
-BUG-016, BUG-017, BUG-018, BUG-019, BUG-032, NET-003 (sprint trusted), NET-005 (damage indicator multicast),
+BUG-032, NET-003 (sprint trusted), NET-005 (damage indicator multicast),
 NET-007 (ladder authority), PERF-001/002/003 (per-frame config reads, component scans, HUD text).

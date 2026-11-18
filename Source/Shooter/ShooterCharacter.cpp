@@ -245,7 +245,7 @@ void AShooterCharacter::BeginPlay()
 			ElimBotSpawnPoint
 		);
 	}
-	if (ElimBotSound)
+	if (ElimBotSoundSpawn)
 	{
 		UGameplayStatics::SpawnSoundAtLocation(
 			this,
@@ -329,12 +329,6 @@ void AShooterCharacter::Tick(float DeltaTime)
 		IntializedHud = true;
 	}
 	UpdateHudAmmo();
-	if (!Combat)
-	{
-		Combat = Cast<UCombatComponent>(getCombatComponent());
-		Combat->Character = this;
-	}
-
 	// Handle health regeneration
 	RegenerateHealth(DeltaTime);
 
@@ -1144,11 +1138,15 @@ void AShooterCharacter::SpawnDefaultWeapon()
 	if (GameMode && World && !bElimed && DefaultWeaponClass)
 	{
 		AWeapon* StartingWeapon = World->SpawnActor<AWeapon>(DefaultWeaponClass);
+		if (StartingWeapon == nullptr) return;
 		StartingWeapon->bDestroyWeapon = true;
 		if (Combat)
 		{
 			Combat->EquipWeapon(StartingWeapon);
-			StartingWeapon->GetPickUpWidget()->DestroyComponent();
+			if (StartingWeapon->GetPickUpWidget())
+			{
+				StartingWeapon->GetPickUpWidget()->DestroyComponent();
+			}
 		}
 	}
 }
@@ -1373,19 +1371,19 @@ void AShooterCharacter::Elim(bool bPlayerLeftGame)
 }
 void AShooterCharacter::SetTeamColor(ETeam Team)
 {
-	if (GetMesh() == nullptr && GreenMaterial == nullptr) return;
+	if (GetMesh() == nullptr) return;
 	switch (Team)
 	{
 	case ETeam::ET_GreenTeam:
-		GetMesh()->SetMaterial(0, GreenMaterial);
+		if (GreenMaterial) GetMesh()->SetMaterial(0, GreenMaterial);
 		DesolveMaterialInstance = TeamDesolveMaterialInstance;
 		break;
 	case ETeam::ET_GreyTeam:
-		GetMesh()->SetMaterial(0, GreyMaterial);
+		if (GreyMaterial) GetMesh()->SetMaterial(0, GreyMaterial);
 		DesolveMaterialInstance = TeamDesolveMaterialInstance;
 		break;
 	case ETeam::ET_NoTeam:
-		GetMesh()->SetMaterial(0, GreenMaterial);
+		if (GreenMaterial) GetMesh()->SetMaterial(0, GreenMaterial);
 		DesolveMaterialInstance = TeamDesolveMaterialInstance;
 		break;
 	case ETeam::ET_MAX:
@@ -1396,7 +1394,7 @@ void AShooterCharacter::SetTeamColor(ETeam Team)
 }
 void AShooterCharacter::Destroyed()
 {
-	Super::Destroy();	 
+	Super::Destroyed();
 	if (ElimBotComponent)
 	{
 		ElimBotComponent->DestroyComponent();
