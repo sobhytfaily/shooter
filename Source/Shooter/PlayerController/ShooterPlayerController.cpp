@@ -58,7 +58,7 @@ void AShooterPlayerController::CheckPing(float DeltaTime)
 		}
 		if (PlayerState)
 		{
-			if (PlayerState->GetPingInMilliseconds() * 4 > HighPingThreshold)
+			if (PlayerState->GetPingInMilliseconds() > HighPingThreshold)
 			{
 				HighPingWarning();
 				HighPingAnimationTime = 0.f;
@@ -140,7 +140,10 @@ void AShooterPlayerController::HandleCooldown()
 			FString AnnouncementText = Announcement::NewMatchStartsIn;
 			FString InfoTextString;
 
-			if (bShowTeamScores)
+			// Decide team vs FFA from the game mode: bShowTeamScores isn't set for players who joined mid-match.
+			AShooterGameMode* AuthGameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AShooterGameMode>() : nullptr;
+			const bool bTeamMatch = AuthGameMode ? AuthGameMode->bTeamMatch : bShowTeamScores;
+			if (bTeamMatch)
 			{
 				InfoTextString = GetTeamsInfoText(ShooterGameState);
 			}
@@ -150,15 +153,8 @@ void AShooterPlayerController::HandleCooldown()
 				InfoTextString = GetInfoText(TopPlayers);
 			}
 
-			// Send to all clients including the server-player
-			for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
-			{
-				AShooterPlayerController* ShooterPlayer = Cast<AShooterPlayerController>(*It);
-				if (ShooterPlayer)
-				{
-					ShooterPlayer->ClientShowCooldownAnnouncement(AnnouncementText, InfoTextString);
-				}
-			}
+			// OnMatchStateSet calls HandleCooldown on every PC, so only send to this one
+			ClientShowCooldownAnnouncement(AnnouncementText, InfoTextString);
 		}
 	}
 
@@ -175,24 +171,30 @@ FString AShooterPlayerController::GetInfoText(const TArray<class AShooterPlayerS
 {
 	AShooterPlayerState* CurrentPlayerState = GetPlayerState<AShooterPlayerState>();
 	if (CurrentPlayerState == nullptr) return FString();
+	// Skip stale entries (a top player who disconnected without using the leave menu).
+	TArray<AShooterPlayerState*> ValidPlayers;
+	for (AShooterPlayerState* TopPlayer : Players)
+	{
+		if (IsValid(TopPlayer)) ValidPlayers.Add(TopPlayer);
+	}
 	FString InfoTextString;
-	if (Players.Num() == 0)
+	if (ValidPlayers.Num() == 0)
 	{
 		InfoTextString = Announcement::ThereIsNoWinner;
 	}
-	else if (Players.Num() == 1 && Players[0] == CurrentPlayerState)
+	else if (ValidPlayers.Num() == 1 && ValidPlayers[0] == CurrentPlayerState)
 	{
 		InfoTextString = Announcement::YouAreTheWinner;
 	}
-	else if (Players.Num() == 1)
+	else if (ValidPlayers.Num() == 1)
 	{
-		InfoTextString = FString::Printf(TEXT("Winner: \n%s"), *Players[0]->GetPlayerName());
+		InfoTextString = FString::Printf(TEXT("Winner: \n%s"), *ValidPlayers[0]->GetPlayerName());
 	}
-	else if (Players.Num() > 1)
+	else
 	{
 		InfoTextString = Announcement::PlayersTiedForTheWin;
 		InfoTextString.Append(FString("\n"));
-		for (auto TiedPlayer : Players)
+		for (AShooterPlayerState* TiedPlayer : ValidPlayers)
 		{
 			InfoTextString.Append(FString::Printf(TEXT("%s\n"), *TiedPlayer->GetPlayerName()));
 		}
@@ -202,7 +204,7 @@ FString AShooterPlayerController::GetInfoText(const TArray<class AShooterPlayerS
 
 FString AShooterPlayerController::GetTeamsInfoText(AShooterGameState* ShooterGameState)
 {
-	if (ShooterGameMode == nullptr) return FString();
+	if (ShooterGameState == nullptr) return FString();
 	FString InfoTextString;
 
 	const int32 GreenTeamScore = ShooterGameState->GreenTeamScore;
@@ -651,12 +653,15 @@ void AShooterPlayerController::SetHudTime()
 		if (ShooterGameMode == nullptr)
 		{
 			ShooterGameMode = Cast<AShooterGameMode>(UGameplayStatics::GetGameMode(this));
-			LevelStartingTime = ShooterGameMode->LevelStartingTime;
+			if (ShooterGameMode)
+			{
+				LevelStartingTime = ShooterGameMode->LevelStartingTime;
+			}
 		}
 		ShooterGameMode = ShooterGameMode == nullptr ? Cast<AShooterGameMode>(UGameplayStatics::GetGameMode(this)) : ShooterGameMode;
 		if (ShooterGameMode)
 		{
-			SecondsLeft = FMath::CeilToInt(ShooterGameMode->GetCountdownTime() + LevelStartingTime);
+			SecondsLeft = FMath::CeilToInt(ShooterGameMode->GetCountdownTime()); // already relative to LevelStartingTime
 		}
 	}
 	if (CountDownInt != SecondsLeft)
@@ -822,6 +827,10 @@ void AShooterPlayerController::ServerCheckMatchState_Implementation()
 		CooldownTime = GameMode->CooldownTime;
 		MatchState = GameMode->GetMatchState();
 		ClientJoinMidGame(MatchState, WarmUpTime, MatchTime, LevelStartingTime, CooldownTime);
+		if (MatchState == MatchState::Cooldown)
+		{
+			HandleCooldown(); // joined during cooldown: send this player its winner announcement
+		}
 	}
 }
 

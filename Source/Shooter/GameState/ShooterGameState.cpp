@@ -35,6 +35,35 @@ void AShooterGameState::UpdateTopScore(AShooterPlayerState* ScoringPlayer)
 
 }
 
+void AShooterGameState::RecomputeTopScore(AShooterPlayerState* ExcludedPlayer)
+{
+	if (!HasAuthority()) return;
+	TopScoringPlayers.Empty();
+	TopScore = 0.f;
+	for (APlayerState* PS : PlayerArray)
+	{
+		AShooterPlayerState* ShooterPS = Cast<AShooterPlayerState>(PS);
+		if (ShooterPS == nullptr || ShooterPS == ExcludedPlayer) continue;
+		const float PlayerScore = ShooterPS->GetScore();
+		if (TopScoringPlayers.Num() == 0 || PlayerScore > TopScore)
+		{
+			TopScoringPlayers.Empty();
+			TopScoringPlayers.Add(ShooterPS);
+			TopScore = PlayerScore;
+		}
+		else if (PlayerScore == TopScore)
+		{
+			TopScoringPlayers.Add(ShooterPS);
+		}
+	}
+	// Nobody has scored: no winner (matches UpdateTopScore, which only ever adds scorers)
+	if (TopScore <= 0.f)
+	{
+		TopScoringPlayers.Empty();
+		TopScore = 0.f;
+	}
+}
+
 void AShooterGameState::GreenTeamScores()
 {
 	GreenTeamScore++;

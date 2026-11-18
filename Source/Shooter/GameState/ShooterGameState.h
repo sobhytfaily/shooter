@@ -16,6 +16,8 @@ class SHOOTER_API AShooterGameState : public AGameState
 public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	void UpdateTopScore(class AShooterPlayerState* ScoringPlayer);
+	// Server only: rebuilds TopScore/TopScoringPlayers from PlayerArray, skipping ExcludedPlayer (a leaving player)
+	void RecomputeTopScore(class AShooterPlayerState* ExcludedPlayer = nullptr);
 	UPROPERTY(Replicated)
 		TArray<AShooterPlayerState*> TopScoringPlayers;
 	

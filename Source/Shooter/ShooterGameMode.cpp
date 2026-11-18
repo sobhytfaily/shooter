@@ -66,7 +66,7 @@ void AShooterGameMode::Tick(float DeltaTime)
 	}
 	else if (MatchState == MatchState::InProgress)
 	{
-		CountDownTime = WarmUpTime + MatchTime - GetWorld()->GetRealTimeSeconds() + LevelStartingTime;
+		CountDownTime = WarmUpTime + MatchTime - GetWorld()->GetTimeSeconds() + LevelStartingTime;
 		if (CountDownTime <= 0.f)
 		{
 			SetMatchState(MatchState::Cooldown);
@@ -74,7 +74,7 @@ void AShooterGameMode::Tick(float DeltaTime)
 	}
 	else if (MatchState == MatchState::Cooldown)
 	{
-		CountDownTime = CooldownTime + WarmUpTime + MatchTime - GetWorld()->GetRealTimeSeconds() + LevelStartingTime;
+		CountDownTime = CooldownTime + WarmUpTime + MatchTime - GetWorld()->GetTimeSeconds() + LevelStartingTime;
 		if (CountDownTime <= 0.f)
 		{
 			RestartGame();
@@ -139,8 +139,15 @@ void AShooterGameMode::RequestRespawn(ACharacter* ElimmedCharacter, AController*
 	{
 		TArray<AActor*> StartActors;
 		UGameplayStatics::GetAllActorsOfClass(this, APlayerStart::StaticClass(), StartActors);
-		int32 Selection = FMath::RandRange(0, StartActors.Num() - 1);
-		RestartPlayerAtPlayerStart(ElimmedController, StartActors[Selection]);
+		if (StartActors.Num() > 0)
+		{
+			int32 Selection = FMath::RandRange(0, StartActors.Num() - 1);
+			RestartPlayerAtPlayerStart(ElimmedController, StartActors[Selection]);
+		}
+		else
+		{
+			RestartPlayer(ElimmedController);
+		}
 	}
 }
 
@@ -148,9 +155,9 @@ void AShooterGameMode::PlayerLeftGame(AShooterPlayerState* LeavingPlayer)
 {
 	if (LeavingPlayer == nullptr) return;
 	AShooterGameState* ShooterGameState = GetGameState<AShooterGameState>();
-	if (ShooterGameState && ShooterGameState->TopScoringPlayers.Contains(LeavingPlayer))
+	if (ShooterGameState)
 	{
-		ShooterGameState->TopScoringPlayers.Remove(LeavingPlayer);
+		ShooterGameState->RecomputeTopScore(LeavingPlayer);
 	}
 	AShooterCharacter* CharacterLeaving =  Cast<AShooterCharacter>(LeavingPlayer->GetPawn());
 	if (CharacterLeaving)

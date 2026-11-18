@@ -37,12 +37,13 @@ Health is shown only as a red `LowHealth` image opacity (`SetHudDamageOverlay` :
 `LevelStartingTime`. `MatchState` also replicates (`OnRep_MatchState` :727).
 - `InProgress` → `HandleMatchHasStarted` (:739): create overlay, hide announcement, show/hide team scores.
 - `Cooldown` → `HandleCooldown` (:132): overlay removed, announcement shows winner text (`GetInfoText`,
-  `GetTeamsInfoText`), gameplay disabled.
+  `GetTeamsInfoText`), gameplay disabled. Each PC runs this itself (via `OnMatchStateSet`) and sends
+  `ClientShowCooldownAnnouncement` only to itself, so text is per-recipient.
 `SetHudTime` (:642) recomputes the countdown each tick from `GetServerTime()` (server uses the GameMode's value).
 
 ## Time sync & ping
 `ReceivedPlayer` and every `TimeSyncFreq` (5 s): `ServerRequestServerTime` → `ClientReportServerTime` →
-`SingleTripTime`, `ServerClientDelta`. `CheckPing` (:50) every 20 s: high ping → HUD warning animation +
+`SingleTripTime`, `ServerClientDelta`. `CheckPing` (:50) every 20 s: ping ms (`GetPingInMilliseconds`, no multiplier) > `HighPingThreshold` → HUD warning animation +
 `ServerReportPingStatus(true)` → server broadcasts `HighPingDelegate` → weapons disable SSR.
 
 ## Kill feed / announcements

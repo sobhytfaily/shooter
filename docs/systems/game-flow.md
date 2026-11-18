@@ -34,6 +34,7 @@ Tick (ShooterGameMode.cpp:55)
   Cooldown:       CountDown = Cooldown + WarmUp + Match - now + Start → RestartGame()
 OnMatchStateSet (:84) → every AShooterPlayerController::OnMatchStateSet(MatchState, bTeamMatch)
 ```
+All three states use `GetWorld()->GetTimeSeconds()` (not real time).
 Defaults (EditDefaultsOnly, overridden in BP): `WarmUpTime 10`, `MatchTime 120`, `CooldownTime 10`.
 Clients compute their own countdown from values sent by `ServerCheckMatchState` (see controller-and-hud.md).
 
@@ -42,10 +43,10 @@ Clients compute their own countdown from values sent by `ServerCheckMatchState` 
 2. `AShooterGameMode::PlayerEliminated` (:101): attacker `AddToScore(1)`, `GameState->UpdateTopScore`, victim `AddToDeaths(1)`,
    `Character->Elim(false)`, then `BroadcastElim` to **every** controller (kill-feed).
 3. `AShooterCharacter::Elim` → `DropOrDestroyWeapons` + `MulticaseElim` → after `ElimDelay` (3 s) `ElimTimerFinished`
-   → `GameMode->RequestRespawn` (:131): `Reset()+Destroy()` the pawn, `RestartPlayerAtPlayerStart` at a random `APlayerStart`.
+   → `GameMode->RequestRespawn` (:131): `Reset()+Destroy()` the pawn, `RestartPlayerAtPlayerStart` at a random `APlayerStart` (falls back to `RestartPlayer` if the level has none).
 4. Team modes: the new character's `SetSpawnPoint()` then teleports to a matching `ATeamPlayerStart`.
 
-Leaving: `ServerLeaveGame` → `PlayerLeftGame` (:147) removes from `TopScoringPlayers` and calls `Elim(true)`;
+Leaving: `ServerLeaveGame` → `PlayerLeftGame` (:147) calls `GameState->RecomputeTopScore(Leaving)` (rebuilds `TopScore`/`TopScoringPlayers` from `PlayerArray`) and calls `Elim(true)`;
 the client's `OnLeftGame` delegate then destroys the session (see online-sessions.md).
 
 ## Teams (`ATeamsGameMode`, `bTeamMatch = true`)
