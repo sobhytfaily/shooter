@@ -114,6 +114,26 @@ protected:
 			// Track which grenade type is being thrown
 				bool bThrowingSmokeGernade = false;
 
+				// Hold-to-aim grenades: the throw montage pauses at the LunchGernade notify while the
+				// button is held; releasing launches immediately. Set on the owning client and the server.
+				bool bGrenadeHeld = false;
+				bool bGrenadeLaunched = false;
+				// Seconds into ThrowGrenadeMontage where the wind-up freezes while the button is held (tune in BP)
+				UPROPERTY(EditAnywhere, Category = "Grenade")
+				float GrenadeHoldPoseTime = 0.35f;
+				// Montage play rate for the throw after the button is released (tune in BP)
+				UPROPERTY(EditAnywhere, Category = "Grenade")
+				float GrenadeReleasePlayRate = 1.75f;
+				FTimerHandle GrenadeHoldTimer;
+				void StartGrenadeHoldTimer();
+				void GrenadeHoldTimerFinished();
+				void LaunchGrenadeNow();
+				void ReleaseGrenade();
+				UFUNCTION(Server, Reliable)
+				void ServerReleaseGrenade(const FVector_NetQuantize& Target);
+				void SpawnGrenade(const FVector_NetQuantize& Target, bool bSmoke);
+				void FinishGrenadeThrow();
+
 				void EquipPrimaryWeapon(AWeapon* WeaponToEquip);
 				void EquipSecondayWeapon(AWeapon* WeaponToEquip);
 

@@ -950,8 +950,12 @@ void AShooterCharacter::HideCameraWhenCharacterClose()
 {
 	if (!IsLocallyControlled()) return;
 
+	// Switching FPS -> TPS: inFirst stays true until the camera finishes interpolating back.
+	// Treat that whole transition as third person so head/legs reappear instantly.
+	const bool bExitingFirstPerson = inFirst && Changefov;
+
 	// In first-person mode, always show weapon, hide mask
-	if (inFirst)
+	if (inFirst && !bExitingFirstPerson)
 	{
 		// While scoped with a sniper, the scope widget covers the whole screen.
 		// Hide weapon + arms/body from the owner so nothing pokes into the lens
@@ -1022,8 +1026,9 @@ void AShooterCharacter::HideCameraWhenCharacterClose()
 		}
 	}
 
-	// Third-person distance-based hiding
-	if ((FollowCamera->GetComponentLocation() - GetActorLocation()).Size() < CameraThreshold)
+	// Third-person distance-based hiding (skipped while the camera is pulling back out of FPS,
+	// otherwise the body would vanish for the first frames of the transition)
+	if (!bExitingFirstPerson && (FollowCamera->GetComponentLocation() - GetActorLocation()).Size() < CameraThreshold)
 	{
 		GetMesh()->SetVisibility(false);
 		if (Combat && Combat->EquippedWeapon && Combat->EquippedWeapon->GetWeaponMesh())
@@ -1200,6 +1205,35 @@ void AShooterCharacter::AccelerateGrenadeMontage(float PlayRate)
 	{
 		AnimInstance->Montage_SetPlayRate(ThrowGrenadeMontage, PlayRate);
 	}
+}
+void AShooterCharacter::PauseGrenadeMontage()
+{
+	UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr;
+	if (AnimInstance && ThrowGrenadeMontage && AnimInstance->Montage_IsPlaying(ThrowGrenadeMontage))
+	{
+		AnimInstance->Montage_Pause(ThrowGrenadeMontage);
+	}
+}
+bool AShooterCharacter::ResumeGrenadeMontage(float PlayRate)
+{
+	UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr;
+	if (AnimInstance && ThrowGrenadeMontage && AnimInstance->Montage_IsActive(ThrowGrenadeMontage))
+	{
+		AnimInstance->Montage_Resume(ThrowGrenadeMontage);
+		AnimInstance->Montage_SetPlayRate(ThrowGrenadeMontage, PlayRate);
+		return true;
+	}
+	return false;
+}
+bool AShooterCharacter::StopGrenadeMontage(float BlendOutTime)
+{
+	UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr;
+	if (AnimInstance && ThrowGrenadeMontage && AnimInstance->Montage_IsActive(ThrowGrenadeMontage))
+	{
+		AnimInstance->Montage_Stop(BlendOutTime, ThrowGrenadeMontage);
+		return true;
+	}
+	return false;
 }
 AWeapon* AShooterCharacter::GetEqiuppedWeapon()
 {

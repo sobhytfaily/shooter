@@ -718,6 +718,8 @@ void UCombatComponent::ThrowGernade()
 	if (CombatState != ECombatState::ECS_Unoccupied || EquippedWeapon == nullptr || Gerandes == 0) return;
 
 	bThrowingSmokeGernade = false;  // Regular grenade
+	bGrenadeHeld = true;
+	bGrenadeLaunched = false;
 	CombatState = ECombatState::ECS_ThrowingGernade;
 	if (Character)
 	{
@@ -725,6 +727,7 @@ void UCombatComponent::ThrowGernade()
 		AttachActorToLeftHand(EquippedWeapon);
 		ShowAttachedGernade(true);
 	}
+	StartGrenadeHoldTimer();
 	if (Character && !Character->HasAuthority())
 	{
 		ServerThrowGernade();
@@ -741,6 +744,8 @@ void UCombatComponent::ServerThrowGernade_Implementation()
 {
 	if (Gerandes == 0) return;
 	bThrowingSmokeGernade = false;  // Regular grenade
+	bGrenadeHeld = true;
+	bGrenadeLaunched = false;
 	CombatState = ECombatState::ECS_ThrowingGernade;
 	if (Character)
 	{
@@ -774,6 +779,12 @@ void UCombatComponent::OnRep_CombatState()
 	switch (CombatState)
 	{
 	case ECombatState::ECS_Unoccupied:
+		// Remote view of a grenade thrown on release: cut the throw montage short like the owner did.
+		if (Character && !Character->IsLocallyControlled() && Character->StopGrenadeMontage())
+		{
+			ShowAttachedGernade(false);
+			AttachActorToRightHand(EquippedWeapon);
+		}
 		if (bFireButtonPressed)
 		{
 			Fire();
@@ -929,27 +940,33 @@ void UCombatComponent::FinishSwapWeapons()
 }
 void UCombatComponent::ThrowGernadeFinish()
 {
+	// Montage notify; also called directly by FinishGrenadeThrow. Ignore late calls (e.g. during blend-out)
+	// so we never clobber a state the player has already moved on to.
+	if (CombatState != ECombatState::ECS_ThrowingGernade) return;
 	CombatState = ECombatState::ECS_Unoccupied;
 	AttachActorToRightHand(EquippedWeapon);
 	bThrowingSmokeGernade = false;  // Reset flag
 }
 void UCombatComponent::LunchGernade()
 {
-	// Clear aiming flags in case the player is still holding the button when the notify fires.
+	// Montage notify at the hand-release frame of the throw.
+	if (bGrenadeHeld)
+	{
+		// Safety net (normally the hold timer froze the montage earlier): keep waiting for release.
+		if (Character) Character->PauseGrenadeMontage();
+		return;
+	}
+	if (bGrenadeLaunched) return;
+
 	bIsAimingGrenade = false;
 	bIsAimingSmokeGrenade = false;
-	ShowAttachedGernade(false);
-	if(Character && Character->IsLocallyControlled())
+	if (Character && Character->IsLocallyControlled())
 	{
-		// Check which grenade type to launch
-		if (bThrowingSmokeGernade)
-		{
-			ServerLunchSmokeGernade(HitTarget);
-		}
-		else
-		{
-			ServerLunchGernade(HitTarget);
-		}
+		LaunchGrenadeNow(); // button was released; the throw just reached the release frame
+	}
+	else
+	{
+		ShowAttachedGernade(false); // remote view: the grenade has left the hand
 	}
 }
 
@@ -1014,6 +1031,8 @@ void UCombatComponent::ThrowSmokeGernade()
 	if (CombatState != ECombatState::ECS_Unoccupied || EquippedWeapon == nullptr) return;
 
 	bThrowingSmokeGernade = true;  // Set flag for smoke grenade
+	bGrenadeHeld = true;
+	bGrenadeLaunched = false;
 	CombatState = ECombatState::ECS_ThrowingGernade;
 	if (Character)
 	{
@@ -1021,6 +1040,7 @@ void UCombatComponent::ThrowSmokeGernade()
 		AttachActorToLeftHand(EquippedWeapon);
 		ShowAttachedGernade(true);
 	}
+	StartGrenadeHoldTimer();
 	if (Character && !Character->HasAuthority())
 	{
 		ServerThrowSmokeGernade();
@@ -1036,6 +1056,8 @@ void UCombatComponent::ServerThrowSmokeGernade_Implementation()
 {
 	if (SmokeGerandes == 0) return;
 	bThrowingSmokeGernade = true;  // Set flag for smoke grenade
+	bGrenadeHeld = true;
+	bGrenadeLaunched = false;
 	CombatState = ECombatState::ECS_ThrowingGernade;
 	if (Character)
 	{
@@ -1112,12 +1134,7 @@ void UCombatComponent::GrenadeButtonReleased()
 
 	bIsAimingGrenade = false;
 	ShowGrenadeTrajectory(false);
-
-	// Speed up any remaining windup so the throw feels instant on release.
-	if (Character)
-	{
-		Character->AccelerateGrenadeMontage(3.f);
-	}
+	ReleaseGrenade();
 }
 
 void UCombatComponent::SmokeGrenadeButtonPressed()
@@ -1140,12 +1157,84 @@ void UCombatComponent::SmokeGrenadeButtonReleased()
 
 	bIsAimingSmokeGrenade = false;
 	ShowGrenadeTrajectory(false);
+	ReleaseGrenade();
+}
 
-	// Speed up any remaining windup so the throw feels instant on release.
+void UCombatComponent::StartGrenadeHoldTimer()
+{
+	// Owner only: freeze the wind-up at GrenadeHoldPoseTime while the button is held.
+	if (Character == nullptr || !Character->IsLocallyControlled()) return;
+	Character->GetWorldTimerManager().SetTimer(GrenadeHoldTimer, this, &UCombatComponent::GrenadeHoldTimerFinished, FMath::Max(GrenadeHoldPoseTime, 0.01f), false);
+}
+
+void UCombatComponent::GrenadeHoldTimerFinished()
+{
+	if (bGrenadeHeld && Character)
+	{
+		Character->PauseGrenadeMontage();
+	}
+}
+
+void UCombatComponent::ReleaseGrenade()
+{
+	// Owning client (or listen-server host): play the throw; the grenade launches at the LunchGernade notify.
+	if (Character == nullptr || !bGrenadeHeld) return;
+	bGrenadeHeld = false;
+	Character->GetWorldTimerManager().ClearTimer(GrenadeHoldTimer);
+
+	if (!Character->ResumeGrenadeMontage(GrenadeReleasePlayRate))
+	{
+		LaunchGrenadeNow(); // montage missing/ended: don't lose the throw
+	}
+}
+
+void UCombatComponent::LaunchGrenadeNow()
+{
+	// Owner only. Spawns on the server and cuts the rest of the montage so the player can act right away.
+	if (Character == nullptr || bGrenadeLaunched) return;
+	bGrenadeLaunched = true;
+	if (Character->HasAuthority())
+	{
+		SpawnGrenade(HitTarget, bThrowingSmokeGernade);
+		FinishGrenadeThrow();
+	}
+	else
+	{
+		FinishGrenadeThrow(); // predict locally
+		ServerReleaseGrenade(HitTarget);
+	}
+}
+
+void UCombatComponent::ServerReleaseGrenade_Implementation(const FVector_NetQuantize& Target)
+{
+	if (bGrenadeLaunched || CombatState != ECombatState::ECS_ThrowingGernade) return;
+	bGrenadeHeld = false;
+	bGrenadeLaunched = true;
+	SpawnGrenade(Target, bThrowingSmokeGernade); // server's own flag decides the grenade type
+	FinishGrenadeThrow();
+}
+
+void UCombatComponent::SpawnGrenade(const FVector_NetQuantize& Target, bool bSmoke)
+{
+	// Server only. Reuses the existing spawn code.
+	if (bSmoke)
+	{
+		ServerLunchSmokeGernade_Implementation(Target);
+	}
+	else
+	{
+		ServerLunchGernade_Implementation(Target);
+	}
+}
+
+void UCombatComponent::FinishGrenadeThrow()
+{
+	ShowAttachedGernade(false);
 	if (Character)
 	{
-		Character->AccelerateGrenadeMontage(3.f);
+		Character->StopGrenadeMontage();
 	}
+	ThrowGernadeFinish(); // back to Unoccupied, weapon to right hand
 }
 
 void UCombatComponent::ShowGrenadeTrajectory(bool bShow)

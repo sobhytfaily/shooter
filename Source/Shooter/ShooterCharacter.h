@@ -40,6 +40,9 @@ public:
 	void PlayElimMontage();
 	void PlaySwapMontage();
 	void AccelerateGrenadeMontage(float PlayRate);
+	void PauseGrenadeMontage();
+	bool ResumeGrenadeMontage(float PlayRate); // returns false if the montage isn't active
+	bool StopGrenadeMontage(float BlendOutTime = 0.15f); // returns true if the montage was playing
 	void Elim(bool bPlayerLeftGame);
 
 	void SetTeamColor(ETeam Team);

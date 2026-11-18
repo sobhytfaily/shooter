@@ -47,7 +47,9 @@ One-time HUD init → `UpdateHudAmmo` → `RegenerateHealth` (server) → `Updat
 ## Camera: third ↔ first person
 `ChangeFOV` (key `V`) sets `Changefov`; Tick then either snaps to FPS (`SocketOffset (25,10,30)`, arm 0, FOV 90, owner-
 no-see on body parts, pitch clamp −60/70) or interpolates back to TPS (`(0,100,50)`, arm 300). `inFirst` is the mode flag
-(read by `UCombatComponent::InterpFov` and `AimOffset`). `HideCameraWhenCharacterClose` (:955) manages visibility in both modes.
+(read by `UCombatComponent::InterpFov` and `AimOffset`). `HideCameraWhenCharacterClose` manages visibility in both modes;
+while leaving FPS (`inFirst && Changefov`) it treats the character as third person and skips the "camera too close"
+hide, so head/legs/body reappear on the first frame of the transition (fixed 2026-11-19).
 
 ## Aim offset / turning
 `AimOffset` (:667): standing still → `AO_Yaw` relative to `StartingAimRotation`, `TurnInPlace` at ±90°; moving → reset.

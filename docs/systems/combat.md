@@ -55,12 +55,23 @@ when full/empty (montage section `ShotgunEnd`).
 - Swap: `AShooterCharacter::SwapToPrimary/SecondaryWeapon` → `SwapWeapon` (:507) (server; client predicts montage +
   `ServerSwapWeapon`). Swap montage notifies `FinishSwapWeapons` (re-attach) and `FinishSwap` (state → Unoccupied).
 
-## Grenades
-Press (`GrenadeButtonPressed` :1094) → `ThrowGernade` (:716): state `ThrowingGernade`, montage, show `AttachedGernade`,
-decrement count (server). Release → `AccelerateGrenadeMontage(3)`. Montage notify `LunchGernade` (:936) →
-`ServerLunchGernade(HitTarget)` spawns `GernadeClass`; `ThrowGernadeFinish` (:930) returns to `Unoccupied`.
-Smoke grenades mirror this (`SmokeGrenadeButtonPressed`, `ThrowSmokeGernade`, `ServerLunchSmokeGernade`,
-`bThrowingSmokeGernade` selects the class).
+## Grenades (hold to aim, release to throw — changed 2026-11-19)
+- **Press** (`GrenadeButtonPressed`) → `ThrowGernade` (owner) + `ServerThrowGernade` (server): state `ThrowingGernade`,
+  montage, show `AttachedGernade`, decrement count (server), `bGrenadeHeld = true` on owner **and** server.
+- **Hold:** owner starts `GrenadeHoldTimer` (`GrenadeHoldPoseTime`, default 0.35 s, EditAnywhere) →
+  `PauseGrenadeMontage()` freezes the wind-up while `bGrenadeHeld`.
+- **Release** (`GrenadeButtonReleased`) → `ReleaseGrenade()`: clear timer, `ResumeGrenadeMontage(GrenadeReleasePlayRate)`
+  (default 1.75×). Tapping before the hold point just speeds the throw up.
+- **Montage notify `LunchGernade`** (hand-release frame): on the owner, if released → `LaunchGrenadeNow()`: owner predicts
+  `FinishGrenadeThrow()` (hide grenade, `StopGrenadeMontage`, `ThrowGernadeFinish` → `Unoccupied`) and sends
+  `ServerReleaseGrenade(HitTarget)`; the server spawns via `SpawnGrenade(Target, server's bThrowingSmokeGernade)` and
+  finishes. Host does both locally. If still held when the notify fires (hold point set too late) it pauses there.
+  Remote views just hide the attached grenade.
+- `ThrowGernadeFinish` now no-ops unless state is `ThrowingGernade` (protects against blend-out notifies).
+- Remote views: `OnRep_CombatState(Unoccupied)` stops the throw montage, hides the grenade, re-attaches the weapon.
+  Simulated proxies don't see the held pose (the hold flag isn't replicated) — known cosmetic limitation.
+Smoke grenades use the same path (`SmokeGrenadeButtonPressed/Released`, `bThrowingSmokeGernade` selects the class).
+Requires the `LunchGernade` notify to sit at the hand-release frame of `ThrowGrenadeMontage`.
 
 Anim-notify entry points (`UFUNCTION(BlueprintCallable)`, called from montages in `BP_AnimBp`):
 `FinishReloading`, `ShotgunShellReload`, `FinishSwap`, `FinishSwapWeapons`, `ThrowGernadeFinish`, `LunchGernade`.
