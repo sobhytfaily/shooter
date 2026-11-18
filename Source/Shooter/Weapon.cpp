@@ -71,6 +71,40 @@ void AWeapon::BeginPlay()
 	{
 		PickupWidget->SetVisibility(false);
 	}
+
+	bWantsServerSideRewind = bUseServerSideRewind;
+
+	if (HasAuthority())
+	{
+		// Remember where map-placed weapons start so they can be respawned there after pickup.
+		// Default/starting weapons also begin in EWS_intial but are flagged bDestroyWeapon before equip and are skipped.
+		SpawnTransform = GetActorTransform();
+		bPlacedInWorld = (WeaponState == EWeaponState::EWS_intial);
+	}
+}
+
+void AWeapon::ScheduleRespawn()
+{
+	if (!HasAuthority() || !bRespawnAfterPickup || !bPlacedInWorld || bRespawnScheduled || bDestroyWeapon) return;
+	if (WeaponType == EWeaponType::EWT_Flag) return;
+	UWorld* World = GetWorld();
+	if (World == nullptr) return;
+	bRespawnScheduled = true;
+
+	// Timer lives on the world (not this actor) so it still fires if this weapon is later dropped and despawns.
+	const TSubclassOf<AWeapon> WeaponClass = GetClass();
+	const FTransform RespawnTransform = SpawnTransform;
+	FTimerHandle RespawnHandle;
+	World->GetTimerManager().SetTimer(
+		RespawnHandle,
+		FTimerDelegate::CreateWeakLambda(World, [World, WeaponClass, RespawnTransform]()
+		{
+			FActorSpawnParameters Params;
+			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+			World->SpawnActor<AWeapon>(WeaponClass, RespawnTransform, Params);
+		}),
+		FMath::Max(RespawnDelay, 0.1f),
+		false);
 }
 
 
@@ -355,7 +389,7 @@ void AWeapon::OnWeaponStateSet()
 
 void AWeapon::OnPingTooHigh(bool bPingTooHigh)
 {
-	bUseServerSideRewind = !bPingTooHigh;
+	bUseServerSideRewind = bWantsServerSideRewind && !bPingTooHigh;
 }
 
 
@@ -401,6 +435,8 @@ void AWeapon::OnRep_Ammo()
 
 void AWeapon::OnEquippedSecondary()
 {
+	GetWorldTimerManager().ClearTimer(DestroyWeaponTimer);
+	ScheduleRespawn();
 	ShowPickUpWidget(false);
 	AreaSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	WeaponMesh->SetSimulatePhysics(false);
@@ -430,12 +466,12 @@ void AWeapon::OnEquippedSecondary()
 		// Update HUD with current ammo state for secondary weapon
 		SetHudAmmo();
 
-		if (bUseServerSideRewind)
+		if (bWantsServerSideRewind)
 		{
 			PlayerController = PlayerController == nullptr ? Cast<AShooterPlayerController>(PlayerCharacter->Controller) : PlayerController;
-			if (PlayerController && HasAuthority() && !PlayerController->HighPingDelegate.IsBound())
+			if (PlayerController && HasAuthority())
 			{
-				PlayerController->HighPingDelegate.AddDynamic(this, &AWeapon::OnPingTooHigh);
+				PlayerController->HighPingDelegate.AddUniqueDynamic(this, &AWeapon::OnPingTooHigh);
 			}
 		}
 	}
@@ -443,6 +479,8 @@ void AWeapon::OnEquippedSecondary()
 
 void AWeapon::OnWeaponEquipped()
 {
+	GetWorldTimerManager().ClearTimer(DestroyWeaponTimer);
+	ScheduleRespawn();
 	ShowPickUpWidget(false);
 	AreaSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	WeaponMesh->SetSimulatePhysics(false);
@@ -495,12 +533,12 @@ void AWeapon::OnWeaponEquipped()
 			UE_LOG(LogTemp, Log, TEXT("Equipped weapon %s with full magazine"), *GetName());
 		}
 
-		if (bUseServerSideRewind)
+		if (bWantsServerSideRewind)
 		{
 			PlayerController = PlayerController == nullptr ? Cast<AShooterPlayerController>(PlayerCharacter->Controller) : PlayerController;
-			if (PlayerController && HasAuthority() && !PlayerController->HighPingDelegate.IsBound())
+			if (PlayerController && HasAuthority())
 			{
-				PlayerController->HighPingDelegate.AddDynamic(this, &AWeapon::OnPingTooHigh);
+				PlayerController->HighPingDelegate.AddUniqueDynamic(this, &AWeapon::OnPingTooHigh);
 			}
 		}
 	}
@@ -526,10 +564,10 @@ void AWeapon::OnWeaponDropped()
 	if (!OwnerActor) return;
 
 	PlayerCharacter = PlayerCharacter == nullptr ? Cast<AShooterCharacter>(OwnerActor) : PlayerCharacter;
-	if (PlayerCharacter && bUseServerSideRewind)
+	if (PlayerCharacter)
 	{
 		PlayerController = PlayerController == nullptr ? Cast<AShooterPlayerController>(PlayerCharacter->Controller) : PlayerController;
-		if (PlayerController && HasAuthority() && PlayerController->HighPingDelegate.IsBound())
+		if (PlayerController && HasAuthority())
 		{
 			PlayerController->HighPingDelegate.RemoveDynamic(this, &AWeapon::OnPingTooHigh);
 		}
@@ -542,13 +580,10 @@ void AWeapon::OnWeaponDropped()
 
 void AWeapon::DestroyWeapon()
 {
-	/*if (WeaponState == EWeaponState::EWS_Dropped)
+	if (HasAuthority() && WeaponState == EWeaponState::EWS_Dropped)
 	{
 		Destroy();
 	}
-	else {
-
-	}*/
 }
 
 void AWeapon::ShowPickUpWidget(bool bShowWidget)

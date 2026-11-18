@@ -30,9 +30,9 @@ Components: `WeaponMesh` (root, skeletal), `AreaSphere` (pickup overlap, enabled
 
 | State | Handler | Effect |
 |---|---|---|
-| `EWS_Equipped` | `OnWeaponEquipped` (:444) | no physics/collision, hide outline, bind `HighPingDelegate` if SSR |
-| `EWS_EquippedSecondary` | `OnEquippedSecondary` (:402) | same, attached to back |
-| `EWS_Dropped` | `OnWeaponDropped` (:509) | physics on, outline on, unbind ping delegate, start `DestroyWeaponTimer` |
+| `EWS_Equipped` | `OnWeaponEquipped` (:444) | no physics/collision, hide outline, clear `DestroyWeaponTimer`, `AddUniqueDynamic` to `HighPingDelegate` if SSR |
+| `EWS_EquippedSecondary` | `OnEquippedSecondary` (:402) | same, attached to back (also clears `DestroyWeaponTimer`, binds ping delegate) |
+| `EWS_Dropped` | `OnWeaponDropped` (:509) | physics on, outline on, unbind ping delegate, start `DestroyWeaponTimer` (`DestroyWeapon` destroys on authority only if still `EWS_Dropped`; `AFlag` overrides and never despawns) |
 
 SMG is special-cased (strap physics: `QueryAndPhysics` + gravity, ignores all channels).
 
@@ -52,11 +52,21 @@ separate hip-fire (`bHipFireScatter`, 80/80) and aim (`bAimingScatter`, 40/40) s
 **Damage fall-off:** `CalculateDamageWithFalloff(Distance, Base)` (:270): full damage ≤ `MinDamageDistance` (500),
 linear to `Base*MinDamageMultiplier` (0.5) at `MaxDamageDistance` (5000). Only if `bUseDamageFalloff`.
 
-**Server-side rewind flag:** `bUseServerSideRewind` (replicated owner-only) and `OnPingTooHigh` flips it off when the
-controller broadcasts `HighPingDelegate(true)`.
+**Server-side rewind flag:** `bUseServerSideRewind` (replicated owner-only). `bWantsServerSideRewind` captures the BP
+value in `BeginPlay`; weapons that want SSR bind `HighPingDelegate` (`AddUniqueDynamic`) on every equip and always
+unbind on drop. `OnPingTooHigh` sets `bUseServerSideRewind = bWantsServerSideRewind && !bPingTooHigh`, so high ping can
+turn SSR off and back on, but never on for a weapon configured without it.
+
+**Despawn & respawn (T-0004):** a dropped weapon is destroyed after `DestroyWeaponTime` (50 s) unless picked up again
+(timer cleared on equip; flags never despawn). Map-placed weapons (`EWS_intial` at `BeginPlay`) remember their
+`SpawnTransform`; the first pickup calls `ScheduleRespawn()`, which sets a **world** timer (`RespawnDelay`, 60 s;
+`bRespawnAfterPickup` toggle) that spawns a fresh actor of the same class at that spot. Once per actor; starting weapons
+(`bDestroyWeapon`) and flags are skipped. The copy uses class defaults, so per-instance level overrides (e.g. ammo) are
+not carried over. An in-place level reset without travel would not cancel a pending respawn.
 
 Key tunables (EditAnywhere): `FireDelay`, `bAutomatic`, `Damage`, `HeadShotDamage`, `ZoomedFov`, `ZoomInterpSpeed`,
-`MagCapacity`, `WeaponType`, `FireType`, `Team` (flags), crosshair textures, `EquipeSound`, `DestroyWeaponTime`.
+`MagCapacity`, `WeaponType`, `FireType`, `Team` (flags), crosshair textures, `EquipeSound`, `DestroyWeaponTime`,
+`bRespawnAfterPickup`, `RespawnDelay`.
 
 ## AHitScanWeapon::Fire (HitScanWeapon.cpp:14)
 Line trace from `MuzzleFlash` socket toward `HitTarget * 1.25` (`WeaponTraceHit`, :111, ignores owner).

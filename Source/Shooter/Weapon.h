@@ -71,6 +71,12 @@ public:
 
 	bool bDestroyWeapon = false;
 
+	// Map-placed weapons: the server spawns a fresh copy at the original spot this long after it is first picked up
+	UPROPERTY(EditAnywhere, Category = "Respawn")
+	bool bRespawnAfterPickup = true;
+	UPROPERTY(EditAnywhere, Category = "Respawn", meta = (EditCondition = "bRespawnAfterPickup", ClampMin = "0.1"))
+	float RespawnDelay = 60.f;
+
 	UPROPERTY(EditAnywhere)
 	EFireType FireType;
 
@@ -156,6 +162,15 @@ private:
 	FTimerHandle DestroyWeaponTimer;
 
 	void DestroyWeapon();
+
+	// BP-configured value of bUseServerSideRewind; high ping can only turn SSR off within this
+	bool bWantsServerSideRewind = false;
+
+	// Respawn-at-origin (server only)
+	FTransform SpawnTransform;
+	bool bPlacedInWorld = false;
+	bool bRespawnScheduled = false;
+	void ScheduleRespawn();
 
 
 	UPROPERTY(VisibleAnywhere, Category = "Weapon Properties")
