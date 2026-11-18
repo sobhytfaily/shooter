@@ -379,6 +379,24 @@ node_modules/
 !/Source/
 !/Source/**
 
+# Agent docs and orchestration files
+!/CLAUDE.md
+!/docs/
+!/docs/**
+!/.claude/
+/.claude/*
+!/.claude/agents/
+!/.claude/agents/**
+
+# MultiplayerSessions plugin: source and descriptor only (no Binaries/Intermediate)
+!/Plugins/
+/Plugins/*
+!/Plugins/MultiplayerSessions/
+/Plugins/MultiplayerSessions/*
+!/Plugins/MultiplayerSessions/*.uplugin
+!/Plugins/MultiplayerSessions/Source/
+!/Plugins/MultiplayerSessions/Source/**
+
 # Optional: If you want to also track the uproject files, uncomment:
 # !/*.uproject
 
