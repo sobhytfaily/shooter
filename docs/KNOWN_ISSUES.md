@@ -17,32 +17,32 @@ Severity: **S1** crash / data corruption / game-breaking · **S2** wrong gamepla
 | BUG-002 | S1 | `LagCompensationComponent.cpp:220,247,253,261` | shotgun SSR damage reads the **victim's** equipped weapon (and skips victims without one); DamageCauser is the victim's weapon | use `Character->GetEqiuppedWeapon()` (shooter) | fixed, unverified in editor (T-0002) |
 | BUG-004 | S2 | `Weapon/ProjectileRocket.cpp:85` | `Destroyed()` is empty — no `Super::Destroyed()`; `OnHit` runs only on server so **clients never see rocket impact FX/sound** | call `Super::Destroyed()` (or multicast impact cosmetics) and avoid double FX on server | fixed, unverified in editor (T-0003) |
 | BUG-007 | S2 | `Weapon/ProjectileWeapon.cpp:28` vs `Weapon/ProjectileBullet.cpp:60,77` | projectile Owner is the character, but `OnHit` casts `GetOwner()` to `AWeapon` → damage fall-off never applied; server-local SSR branch never sets `TraceStart` | pass weapon via a member/instigator chain; set `TraceStart` in all spawn branches | fixed, unverified in editor (T-0003) |
-| BUG-008 | S2 | `PlayerController/ShooterPlayerController.cpp:61` | `GetPingInMilliseconds() * 4` — UE5 already returns ms, so threshold is effectively 30 ms → SSR disabled for most players | drop the `* 4` | open |
-| BUG-009 | S2 | `Weapon.cpp:436,501,532` | `!HighPingDelegate.IsBound()` guard → only the first weapon ever binds; swapped/picked-up weapons never get ping updates | use `IsAlreadyBound(this, &AWeapon::OnPingTooHigh)` / `AddUniqueDynamic` | open |
-| BUG-010 | S2 | `ShooterPlayerController.cpp:132-170` | `HandleCooldown` runs on every server-side PC and each loops all PCs → N² RPCs; winner text computed from the sending PC's perspective (wrong "You Are The Winner") | send from GameMode once per PC, compute text per recipient (or on client) | open |
-| BUG-013 | S2 | `ShooterGameMode.cpp:69,77` | warm-up uses `GetTimeSeconds`, in-progress/cooldown use `GetRealTimeSeconds`; clients use `GetTimeSeconds` → timer drift/desync | use `GetTimeSeconds` everywhere | open |
+| BUG-008 | S2 | `PlayerController/ShooterPlayerController.cpp:61` | `GetPingInMilliseconds() * 4` — UE5 already returns ms, so threshold is effectively 30 ms → SSR disabled for most players | drop the `* 4` | fixed, unverified in editor (T-0005) |
+| BUG-009 | S2 | `Weapon.cpp:436,501,532` | `!HighPingDelegate.IsBound()` guard → only the first weapon ever binds; swapped/picked-up weapons never get ping updates | use `IsAlreadyBound(this, &AWeapon::OnPingTooHigh)` / `AddUniqueDynamic` | fixed, unverified in editor (T-0004) |
+| BUG-010 | S2 | `ShooterPlayerController.cpp:132-170` | `HandleCooldown` runs on every server-side PC and each loops all PCs → N² RPCs; winner text computed from the sending PC's perspective (wrong "You Are The Winner") | send from GameMode once per PC, compute text per recipient (or on client) | fixed, unverified in editor (T-0005) |
+| BUG-013 | S2 | `ShooterGameMode.cpp:69,77` | warm-up uses `GetTimeSeconds`, in-progress/cooldown use `GetRealTimeSeconds`; clients use `GetTimeSeconds` → timer drift/desync | use `GetTimeSeconds` everywhere | fixed, unverified in editor (T-0005) |
 | BUG-014 | S2 | `TeamsGameMode.cpp:39` | `Logout` override never calls `Super::Logout` | add `Super::Logout(Exiting)` | fixed, unverified in editor (T-0001) |
-| BUG-021 | S2 | `Plugins/.../MultiplayerSessionsSubsystem.cpp:39-46` | when a session exists, `DestroySession()` is called but the function **continues** to `CreateSession` → failed/double create | `return;` after `DestroySession()` | open |
-| BUG-023 | S2 | `Weapon.cpp:543` | `DestroyWeapon` body commented out → dropped weapons never despawn (actor count grows over a match) | restore destroy-if-still-dropped | open |
+| BUG-021 | S2 | `Plugins/.../MultiplayerSessionsSubsystem.cpp:39-46` | when a session exists, `DestroySession()` is called but the function **continues** to `CreateSession` → failed/double create | `return;` after `DestroySession()` | fixed, unverified in editor (T-0006) |
+| BUG-023 | S2 | `Weapon.cpp:543` | `DestroyWeapon` body commented out → dropped weapons never despawn (actor count grows over a match) | restore destroy-if-still-dropped | fixed, unverified in editor (T-0004) |
 | BUG-032 | S2 verify | `CombatComponent.cpp:446,455` vs `ShooterCharacter.cpp:209,1735` | two walk-speed sources: Combat `BaseWalkSpeed/AimWalkSpeed` (BP) vs Character `WalkSpeed/SprintSpeed`; releasing aim restores `BaseWalkSpeed`, not `WalkSpeed` | single source of truth for speed | open |
 | BUG-003 | S3 | `LagCompensationComponent.cpp:239` | shotgun SSR distance averages `HitLocations` (endpoints at `TRACE_LENGHT`) → always max fall-off | use confirmed impact points | fixed, unverified in editor (T-0002) |
 | BUG-005 | S3 | `CombatComponent.cpp:756,765,831` | inverted lazy-init `Controller = Controller ? Cast(...) : Controller` → grenade/shotgun-shell HUD not updated while `Controller` is null | `Controller == nullptr ? Cast(...) : Controller` | open |
 | BUG-006 | S3 | `Weapon/shotgun.cpp:104` | pellet hit-sound pitch `FRandRange(-.5f,.5f)` (≤0 pitch) | e.g. `FRandRange(0.8f,1.2f)` | fixed, unverified in editor (T-0003) |
-| BUG-011 | S3 | `ShooterPlayerController.cpp:654` | `ShooterGameMode->LevelStartingTime` dereferenced before null check (crash if PC is used under a non-Shooter GameMode) | null-check | open |
-| BUG-012 | S3 | `ShooterGameMode.cpp:143` | `RequestRespawn` indexes `StartActors[RandRange(0,-1)]` when map has no PlayerStart | guard `Num()>0` | open |
+| BUG-011 | S3 | `ShooterPlayerController.cpp:654` | `ShooterGameMode->LevelStartingTime` dereferenced before null check (crash if PC is used under a non-Shooter GameMode) | null-check | fixed, unverified in editor (T-0005) |
+| BUG-012 | S3 | `ShooterGameMode.cpp:143` | `RequestRespawn` indexes `StartActors[RandRange(0,-1)]` when map has no PlayerStart | guard `Num()>0` | fixed, unverified in editor (T-0005) |
 | BUG-016 | S3 | `ShooterCharacter.cpp:1376` | `SetTeamColor` guard uses `&&` (should be `||`) | fix condition | fixed, unverified in editor (T-0001) |
 | BUG-017 | S3 | `ShooterCharacter.cpp:~248-252` | `BeginPlay` checks `ElimBotSound` but plays `ElimBotSoundSpawn` | check the sound it plays | fixed, unverified in editor (T-0001) |
 | BUG-018 | S3 | `ShooterCharacter.cpp:333-335` | Tick fallback `if (!Combat) { Combat = ...; Combat->Character = this; }` dereferences null | remove (Combat is a default subobject) | fixed, unverified in editor (T-0001) |
 | BUG-019 | S3 | `ShooterCharacter.cpp:1147` | `SpawnDefaultWeapon` doesn't null-check the spawned weapon | guard | fixed, unverified in editor (T-0001) |
 | BUG-020 | S3 | `ShooterHud.cpp:69,83` | kill-feed `ElimMessages` never pruned → grows, holds removed widgets | `ElimMessages.Remove(Msg)` in timer callback | open |
-| BUG-022 | S3 | `Plugins/.../Menu.cpp:130` | `OnJoinSession` ignores `Result`, travels even on failure; Join button not re-enabled | handle non-Success | open |
+| BUG-022 | S3 | `Plugins/.../Menu.cpp:130` | `OnJoinSession` ignores `Result`, travels even on failure; Join button not re-enabled | handle non-Success | fixed, unverified in editor (T-0006) |
 | BUG-024 | S3 | `CaptureTheFlagGameMode.cpp:17`, `CaptureTheFlag/FlagZone.cpp:21` | `bValidCapture` unused; no null checks; overlap not authority-gated | gate on `HasAuthority()`, use the flag | open |
 | BUG-026 | S3 | `Config/DefaultInput.ini` | `Gamepad_FaceButton_Left` bound to both Equip and Reload | rebind one | open |
 | BUG-027 | S3 | `HUD/ReturnToMainMenu.cpp:222` | `OnLeftGame.AddDynamic` after `ServerLeaveGame` and on every click (dup-bind ensure) | bind once, before the RPC | open |
 | BUG-028 | S3 | `CombatComponent.cpp:419` (`LocalFire`) | AR shows a hit marker when crosshair is red **and** `AHitScanWeapon::Fire` shows one → double marker | keep one | open |
 | BUG-029 | S3 | `Weapon/shotgun.cpp` (`FireShotgun`) | hit markers use `PlayerCharacter` before it is assigned | assign first | fixed, unverified in editor (T-0003) |
 | BUG-030 | S3 | `CombatComponent.cpp:155,1064` | `InterpFov` / `OnRep_CarriedAmmo` dereference `Character` without null check | guard | open |
-| BUG-031 | S3 | `GameState/ShooterGameState.cpp:17` | `TopScore` not recomputed when a top player leaves | recompute from `PlayerArray` | open |
+| BUG-031 | S3 | `GameState/ShooterGameState.cpp:17` | `TopScore` not recomputed when a top player leaves | recompute from `PlayerArray` | fixed, unverified in editor (T-0005) |
 
 ## Networking / anti-cheat (server trusts the client)
 
