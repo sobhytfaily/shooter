@@ -61,6 +61,9 @@ struct FShotgunServerSideRewindResult
 		TMap<AShooterCharacter*, uint32> HeadShots;
 	UPROPERTY()
 		TMap<AShooterCharacter*, uint32> BodyShots;
+	// Sum of confirmed impact distances (TraceStart to ImpactPoint) of all pellets that hit each character
+	UPROPERTY()
+		TMap<AShooterCharacter*, float> HitDistanceSums;
 
 };
 

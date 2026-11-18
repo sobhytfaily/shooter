@@ -213,13 +213,16 @@ void ULagCompensationComponent::ServerScoreRequest_Implementation(AShooterCharac
 }
 void ULagCompensationComponent::ShotgunServerScoreRequest_Implementation(const TArray<AShooterCharacter*>& HitCharacters, const FVector_NetQuantize& TraceStart, const TArray<FVector_NetQuantize>& HitLocations, float HitTime)
 {
+	AWeapon* ShooterWeapon = Character ? Character->GetEqiuppedWeapon() : nullptr;
+	if (Character == nullptr || ShooterWeapon == nullptr) return;
+
 	FShotgunServerSideRewindResult Confirm = ShotgunServerSideRewind(HitCharacters, TraceStart, HitLocations, HitTime);
 
 	for (auto& HitCharacter : HitCharacters)
 	{
-		if (HitCharacter == nullptr || HitCharacter->GetEqiuppedWeapon() == nullptr || Character == nullptr) continue;
+		if (HitCharacter == nullptr) continue;
 
-		// Calculate average distance to this character from all hit locations
+		// Average confirmed impact distance of the pellets that hit this character
 		float AverageDistance = 0.f;
 		int32 HitCount = 0;
 
@@ -232,33 +235,30 @@ void ULagCompensationComponent::ShotgunServerScoreRequest_Implementation(const T
 			HitCount += Confirm.BodyShots[HitCharacter];
 		}
 
-		if (HitCount > 0)
+		if (HitCount > 0 && Confirm.HitDistanceSums.Contains(HitCharacter))
 		{
-			for (auto& HitLocation : HitLocations)
-			{
-				AverageDistance += (HitLocation - TraceStart).Size();
-			}
-			AverageDistance /= HitLocations.Num();
+			AverageDistance = Confirm.HitDistanceSums[HitCharacter] / HitCount;
 		}
 
 		float TotalDamage = 0.f;
 		if (Confirm.HeadShots.Contains(HitCharacter))
 		{
-			float BaseDamagePerPellet = HitCharacter->GetEqiuppedWeapon()->GetHeadShotDamage();
-			float DamagePerPellet = Character->GetEqiuppedWeapon()->CalculateDamageWithFalloff(AverageDistance, BaseDamagePerPellet);
+			float BaseDamagePerPellet = ShooterWeapon->GetHeadShotDamage();
+			float DamagePerPellet = ShooterWeapon->CalculateDamageWithFalloff(AverageDistance, BaseDamagePerPellet);
 			TotalDamage += Confirm.HeadShots[HitCharacter] * DamagePerPellet;
 		}
 		if (Confirm.BodyShots.Contains(HitCharacter))
 		{
-			float BaseDamagePerPellet = HitCharacter->GetEqiuppedWeapon()->GetDamage();
-			float DamagePerPellet = Character->GetEqiuppedWeapon()->CalculateDamageWithFalloff(AverageDistance, BaseDamagePerPellet);
+			float BaseDamagePerPellet = ShooterWeapon->GetDamage();
+			float DamagePerPellet = ShooterWeapon->CalculateDamageWithFalloff(AverageDistance, BaseDamagePerPellet);
 			TotalDamage += Confirm.BodyShots[HitCharacter] * DamagePerPellet;
 		}
+		if (TotalDamage <= 0.f) continue;
 		UGameplayStatics::ApplyDamage(
 			HitCharacter,
 			TotalDamage,
 			Character->Controller,
-			HitCharacter->GetEqiuppedWeapon(),
+			ShooterWeapon,
 			UDamageType::StaticClass()
 		);
 	}
@@ -529,9 +529,11 @@ FShotgunServerSideRewindResult ULagCompensationComponent::ShotgunConfirmHit(cons
 		HeadBox->SetCollisionResponseToChannel(ECC_HitBox, ECollisionResponse::ECR_Block);
 	}
 	UWorld* World = GetWorld();
+	TSet<int32> ConfirmedPellets;
 	//check for head shots
-	for (auto& HitLocation : HitLocations)
+	for (int32 PelletIndex = 0; PelletIndex < HitLocations.Num(); ++PelletIndex)
 	{
+		const FVector_NetQuantize& HitLocation = HitLocations[PelletIndex];
 		FHitResult ConfirmHitResult;
 		const FVector TraceEnd = TraceStart + (HitLocation - TraceStart) * 1.25f;
 
@@ -556,6 +558,8 @@ FShotgunServerSideRewindResult ULagCompensationComponent::ShotgunConfirmHit(cons
 						DrawDebugBox(GetWorld(), Box->GetComponentLocation(), Box->GetScaledBoxExtent(), FQuat(Box->GetComponentRotation()), FColor::Red, true);
 					}
 				}*/
+				ShotgunResults.HitDistanceSums.FindOrAdd(ShooterCharacter) += (ConfirmHitResult.ImpactPoint - TraceStart).Size();
+				ConfirmedPellets.Add(PelletIndex);
 				if (ShotgunResults.HeadShots.Contains(ShooterCharacter))
 				{
 					ShotgunResults.HeadShots[ShooterCharacter]++;
@@ -583,8 +587,10 @@ FShotgunServerSideRewindResult ULagCompensationComponent::ShotgunConfirmHit(cons
 		HeadBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 	// checking for body shots
-	for (auto& HitLocation : HitLocations)
+	for (int32 PelletIndex = 0; PelletIndex < HitLocations.Num(); ++PelletIndex)
 	{
+		if (ConfirmedPellets.Contains(PelletIndex)) continue;
+		const FVector_NetQuantize& HitLocation = HitLocations[PelletIndex];
 		FHitResult ConfirmHitResult;
 		const FVector TraceEnd = TraceStart + (HitLocation - TraceStart) * 1.25f;
 
@@ -608,6 +614,7 @@ FShotgunServerSideRewindResult ULagCompensationComponent::ShotgunConfirmHit(cons
 						DrawDebugBox(GetWorld(), Box->GetComponentLocation(), Box->GetScaledBoxExtent(), FQuat(Box->GetComponentRotation()), FColor::Blue, true);
 					}
 				}*/
+				ShotgunResults.HitDistanceSums.FindOrAdd(ShooterCharacter) += (ConfirmHitResult.ImpactPoint - TraceStart).Size();
 				if (ShotgunResults.BodyShots.Contains(ShooterCharacter))
 				{
 					ShotgunResults.BodyShots[ShooterCharacter]++;

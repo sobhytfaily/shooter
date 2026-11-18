@@ -46,7 +46,7 @@ threshold `HighPingThreshold` 120 ms). With SSR off, the server's own trace/proj
 `ShowFramePackage(Package, Color)` draws boxes for 4 s. Commented `DrawDebugBox` blocks exist in each confirm function.
 
 ## Open issues
-**BUG-002 (shotgun SSR uses the victim's weapon for damage)**, BUG-003 (shotgun distance always ~1e6), BUG-008
+BUG-002 / BUG-003 (shotgun SSR damage source and distance) fixed, unverified in editor (T-0002); BUG-008
 (ping ×4 → SSR disabled far too often), NET-002 (no validation of HitTime/TraceStart/rate), NET-004 (client controls
 its own SSR flag), PERF-006 (per-tick TMap allocations, ticks on clients). `TMap::operator[]` on `"head"` asserts if a
 hit box is missing — keep the 16 boxes in sync with the constructor.
